@@ -10,6 +10,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
 import "./interfaces/IDepositTimelock.sol";
+import "./interfaces/IDepositTimelockHooks.sol";
 import "./interfaces/ISwapAdapter.sol";
 
 /**
@@ -415,6 +416,23 @@ contract DepositTimelock is
 
         /* Transfer refund output amount from this contract to sender */
         if (refundWithdrawAmount > 0) IERC20(withdrawToken).safeTransfer(depositor, refundWithdrawAmount);
+
+        /* Call onDepositWithdrawn hook if depositor is a contract and implements IDepositTimelockHooks
+        interface */
+        if (depositor.code.length != 0 && IERC165(depositor).supportsInterface(type(IDepositTimelockHooks).interfaceId))
+        {
+            IDepositTimelockHooks(depositor)
+                .onDepositWithdrawn(
+                    msg.sender,
+                    context,
+                    deposit_.token,
+                    withdrawToken,
+                    deposit_.amount,
+                    withdrawAmount,
+                    refundDepositAmount,
+                    refundWithdrawAmount
+                );
+        }
 
         /* Emit withdrawn event */
         emit Withdrawn(
