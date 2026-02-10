@@ -4,6 +4,7 @@ pragma solidity 0.8.29;
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
@@ -20,6 +21,7 @@ import {LoanTermsLogic} from "src/LoanTermsLogic.sol";
 import {ILoanRouter} from "src/interfaces/ILoanRouter.sol";
 
 import {TestERC721} from "./mocks/TestERC721.sol";
+import {ExternalCollateralLiquidator} from "src/liquidators/ExternalCollateralLiquidator.sol";
 
 /**
  * @title Base test setup for LoanRouter
@@ -35,7 +37,6 @@ abstract contract BaseTest is Test {
     address internal constant USDT = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
     address internal constant USDAI = 0x0A1a1A107E45b7Ced86833863f482BC5f4ed82EF;
     address internal constant STAKED_USDAI = 0x0B2b2B2076d95dda7817e785989fE353fe955ef9;
-    address internal constant ENGLISH_AUCTION_LIQUIDATOR = 0xceb5856C525bbb654EEA75A8852A0F51073C4a58;
     address internal constant UNISWAP_V3_ROUTER = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45;
 
     /* Time constants */
@@ -89,6 +90,7 @@ abstract contract BaseTest is Test {
     /*------------------------------------------------------------------------*/
 
     BundleCollateralWrapper internal bundleCollateralWrapper;
+    ExternalCollateralLiquidator internal externalCollateralLiquidator;
 
     LoanRouter internal loanRouterImpl;
     LoanRouter internal loanRouter;
@@ -139,6 +141,9 @@ abstract contract BaseTest is Test {
         // Deploy bundle collateral wrapper
         deployBundleCollateralWrapper();
 
+        // Deploy external collateral liquidator
+        deployExternalCollateralLiquidator();
+
         // Deploy contracts
         deployDepositTimelock();
         deployLoanRouter();
@@ -179,8 +184,9 @@ abstract contract BaseTest is Test {
         vm.startPrank(users.deployer);
 
         // Deploy implementation
-        loanRouterImpl =
-            new LoanRouter(address(depositTimelock), ENGLISH_AUCTION_LIQUIDATOR, address(bundleCollateralWrapper));
+        loanRouterImpl = new LoanRouter(
+            address(depositTimelock), address(externalCollateralLiquidator), address(bundleCollateralWrapper)
+        );
 
         // Deploy proxy
         loanRouterProxy = new TransparentUpgradeableProxy(
@@ -225,6 +231,25 @@ abstract contract BaseTest is Test {
         vm.startPrank(users.deployer);
         bundleCollateralWrapper = new BundleCollateralWrapper();
         vm.stopPrank();
+    }
+
+    function deployExternalCollateralLiquidator() internal {
+        vm.startPrank(users.deployer);
+        ExternalCollateralLiquidator externalCollateralLiquidatorImpl = new ExternalCollateralLiquidator();
+        externalCollateralLiquidator = ExternalCollateralLiquidator(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(externalCollateralLiquidatorImpl),
+                    address(users.admin),
+                    abi.encodeWithSignature("initialize(address)", users.admin)
+                )
+            )
+        );
+        vm.stopPrank();
+
+        vm.prank(users.admin);
+        AccessControl(address(externalCollateralLiquidator))
+            .grantRole(keccak256("COLLATERAL_LIQUIDATOR"), users.liquidator);
     }
 
     /*------------------------------------------------------------------------*/

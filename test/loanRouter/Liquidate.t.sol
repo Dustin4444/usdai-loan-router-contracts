@@ -64,18 +64,31 @@ contract LoanRouterLiquidateTest is BaseTest {
         uint256 proceeds
     ) internal {
         // Fund the liquidator with proceeds (simulating successful auction)
-        deal(USDC, ENGLISH_AUCTION_LIQUIDATOR, proceeds);
+        deal(USDC, users.liquidator, proceeds);
 
         // Impersonate the liquidator to call the callback
-        vm.startPrank(ENGLISH_AUCTION_LIQUIDATOR);
+        vm.startPrank(users.liquidator);
 
-        // Transfer proceeds to LoanRouter
-        if (proceeds > 0) {
-            IERC20(USDC).transfer(address(loanRouter), proceeds);
-        }
+        externalCollateralLiquidator.withdrawCollateral(
+            address(loanRouter),
+            loanTerms.currencyToken,
+            loanTerms.collateralToken,
+            loanTerms.collateralTokenId,
+            loanTerms.collateralWrapperContext,
+            abi.encode(loanTerms)
+        );
 
-        // Call onCollateralLiquidated callback
-        loanRouter.onCollateralLiquidated(abi.encode(loanTerms), proceeds);
+        IERC20(USDC).approve(address(externalCollateralLiquidator), proceeds);
+
+        externalCollateralLiquidator.liquidateCollateral(
+            address(loanRouter),
+            loanTerms.currencyToken,
+            loanTerms.collateralToken,
+            loanTerms.collateralTokenId,
+            loanTerms.collateralWrapperContext,
+            abi.encode(loanTerms),
+            proceeds
+        );
 
         vm.stopPrank();
     }
@@ -380,7 +393,7 @@ contract LoanRouterLiquidateTest is BaseTest {
         ILoanRouter.LoanTerms memory loanTerms = _borrowLoan(principal, 1);
 
         // Loan is Active, not Liquidated - try to call callback
-        vm.startPrank(ENGLISH_AUCTION_LIQUIDATOR);
+        vm.startPrank(address(externalCollateralLiquidator));
         vm.expectRevert(ILoanRouter.InvalidLoanState.selector);
         loanRouter.onCollateralLiquidated(abi.encode(loanTerms), 100_000 * 1e6);
         vm.stopPrank();
