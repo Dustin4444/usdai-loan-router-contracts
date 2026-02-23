@@ -410,6 +410,16 @@ interface ILoanRouter {
     /*------------------------------------------------------------------------*/
 
     /**
+     * @notice Pause (admin only)
+     */
+    function pause() external;
+
+    /**
+     * @notice Unpause (admin only)
+     */
+    function unpause() external;
+
+    /**
      * @notice Set fee recipient (admin only)
      * @param recipient Fee recipient address
      */

@@ -73,6 +73,11 @@ contract LoanRouter is
     uint256 internal constant SUPPORTS_INTERFACE_GAS_LIMIT = 12_000;
 
     /**
+     * @notice Pause role
+     */
+    bytes32 internal constant PAUSE_ADMIN_ROLE = keccak256("PAUSE_ADMIN_ROLE");
+
+    /**
      * @notice Scaling factor transient slot
      * @dev keccak256(abi.encode(uint256(keccak256("loanRouter.scalingFactor")) - 1)) & ~bytes32(uint256(0xff));
      */
@@ -1132,6 +1137,20 @@ contract LoanRouter is
     /*------------------------------------------------------------------------*/
     /* Permissioned API */
     /*------------------------------------------------------------------------*/
+
+    /**
+     * @inheritdoc ILoanRouter
+     */
+    function pause() external onlyRole(PAUSE_ADMIN_ROLE) {
+        _pause();
+    }
+
+    /**
+     * @inheritdoc ILoanRouter
+     */
+    function unpause() external onlyRole(PAUSE_ADMIN_ROLE) {
+        _unpause();
+    }
 
     /**
      * @inheritdoc ILoanRouter
