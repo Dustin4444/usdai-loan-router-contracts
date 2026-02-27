@@ -161,8 +161,8 @@ schedule with fixed principal payments and simple interest, and the
 `AmortizedInterestRateModel` implements an amortized loan repayment schedule
 with fixed overall repayments and simple interest.
 
-Future interest rate models maybe implement variable interest rates indexed to
-an external oracle.
+Future interest rate models may implement variable interest rates indexed to an
+external oracle.
 
 ## Deposit Timelock
 
