@@ -18,6 +18,7 @@ contract Show is Deployer {
         console.log("simpleInterestRateModel:       %s", _deployment.simpleInterestRateModel);
         console.log("amortizedInterestRateModel:    %s", _deployment.amortizedInterestRateModel);
         console.log("bundleCollateralWrapper:       %s", _deployment.bundleCollateralWrapper);
+        console.log("externalCollateralLiquidator:  %s", _deployment.externalCollateralLiquidator);
 
         console.log("Printing deployments completed");
     }
