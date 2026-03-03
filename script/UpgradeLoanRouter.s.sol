@@ -11,12 +11,15 @@ import {LoanRouter} from "src/LoanRouter.sol";
 import {Deployer} from "./utils/Deployer.s.sol";
 
 contract UpgradeLoanRouter is Deployer {
-    function run(
-        address collateralLiquidator,
-        address collateralWrapper
-    ) public broadcast useDeployment returns (address) {
+    function run() public broadcast useDeployment returns (address) {
+        if (_deployment.depositTimelock == address(0x0)) revert MissingDependency();
+        if (_deployment.externalCollateralLiquidator == address(0x0)) revert MissingDependency();
+        if (_deployment.bundleCollateralWrapper == address(0x0)) revert MissingDependency();
+
         // Deploy LoanRouter implementation
-        LoanRouter loanRouterImpl = new LoanRouter(_deployment.depositTimelock, collateralLiquidator, collateralWrapper);
+        LoanRouter loanRouterImpl = new LoanRouter(
+            _deployment.depositTimelock, _deployment.externalCollateralLiquidator, _deployment.bundleCollateralWrapper
+        );
         console.log("LoanRouter implementation", address(loanRouterImpl));
 
         /* Lookup proxy admin */

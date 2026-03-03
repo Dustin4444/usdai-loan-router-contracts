@@ -27,7 +27,7 @@ usage() {
     echo "  deploy-loan-router <collateral liquidator> <collateral wrapper> <deployer> <admin> <liquidation fee rate>"
     echo ""
     echo "  upgrade-deposit-timelock"
-    echo "  upgrade-loan-router <collateral liquidator> <collateral wrapper>"
+    echo "  upgrade-loan-router"
     echo ""
     echo "  deploy-production-environment <deployer> <collateral liquidator> <collateral wrapper> <admin> <liquidation fee rate>"
     echo "  deploy-usdai-swap-adapter <usdai token>"
