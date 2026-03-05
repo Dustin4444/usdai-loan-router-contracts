@@ -1085,16 +1085,21 @@ contract LoanRouter is
         /* Compute liquidation fee */
         uint256 liquidationFee = Math.mulDiv(scaledProceeds, _getFeeStorage().liquidationFeeRate, BASIS_POINTS_SCALE);
 
-        /* Compute tranche repayments */
-        (,, uint256[] memory tranchePrincipals, uint256[] memory trancheInterests,) = IInterestRateModel(
-                loanTerms.interestRateModel
-            )
+        /* Compute tranche principals (entire remaining balance) */
+        (,, uint256[] memory tranchePrincipals,,) = IInterestRateModel(loanTerms.interestRateModel)
+            .repayment(
+                loanTerms, loanState_.balance, loanState_.repaymentDeadline, loanState_.maturity, loanState_.maturity
+            );
+
+        /* Compute tranche interests (only the defaulted intervals and grace period interest) */
+        /* There may be overlap of defaulted interval interest and grace period interest */
+        (,,, uint256[] memory trancheInterests,) = IInterestRateModel(loanTerms.interestRateModel)
             .repayment(
                 loanTerms,
                 loanState_.balance,
                 loanState_.repaymentDeadline,
                 loanState_.maturity,
-                uint64(loanState_.maturity == loanState_.repaymentDeadline ? block.timestamp : loanState_.maturity)
+                uint64(block.timestamp)
             );
 
         /* Remaining proceeds after liquidation fee */
