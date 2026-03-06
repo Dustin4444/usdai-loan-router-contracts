@@ -7,6 +7,7 @@ import {BaseTest} from "../Base.t.sol";
 import {ILoanRouter} from "src/interfaces/ILoanRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 contract LoanRouterRepayTest is BaseTest {
     /*------------------------------------------------------------------------*/
@@ -676,6 +677,45 @@ contract LoanRouterRepayTest is BaseTest {
         assertEq(IERC20(USDC).balanceOf(users.lender1), lender1Before, "Blacklisted lender should not receive payment");
     }
 
+    /*------------------------------------------------------------------------*/
+    /* Test: Malformed supportsInterface - repayment DOS fix */
+    /*------------------------------------------------------------------------*/
+
+    function test__Repay_MalformedSupportsInterface_NoDoS() public {
+        uint256 principal = 200_000 * 1e6; // 200k USDC, 2 tranches
+
+        (ILoanRouter.LoanTerms memory loanTerms,) = setupLoan(principal, 2);
+
+        // Get tranche token IDs: lender1 owns [0], lender2 owns [1]
+        uint256[] memory tokenIds = loanRouter.loanTokenIds(loanTerms);
+
+        // Attacker (lender2) transfers their tranche NFT to a contract with a
+        // malformed supportsInterface that returns 2 instead of 0 or 1.
+        // Before the fix this caused abi.decode(returnData, (bool)) to revert
+        // inside _supportsHooksInterface, bricking repay for all lenders.
+        MalformedSupportsInterfaceOwner maliciousOwner = new MalformedSupportsInterfaceOwner();
+        vm.prank(users.lender2);
+        loanRouter.safeTransferFrom(users.lender2, address(maliciousOwner), tokenIds[1]);
+
+        (,, uint64 repaymentDeadline,) = loanRouter.loanState(loanRouter.loanTermsHash(loanTerms));
+        warpToNextRepaymentWindow(repaymentDeadline);
+
+        uint256 lender1Before = IERC20(USDC).balanceOf(users.lender1);
+
+        // Repay must succeed despite a tranche being held by the malicious contract
+        vm.startPrank(users.borrower);
+        uint256 requiredPayment = calculateRequiredRepayment(loanTerms);
+        loanRouter.repay(loanTerms, requiredPayment);
+        vm.stopPrank();
+
+        // Verify lender1 (honest tranche) received payment
+        assertGt(IERC20(USDC).balanceOf(users.lender1), lender1Before, "Lender1 should receive payment");
+
+        // Verify loan state advanced
+        (,, uint64 newDeadline,) = loanRouter.loanState(loanRouter.loanTermsHash(loanTerms));
+        assertEq(newDeadline, repaymentDeadline + REPAYMENT_INTERVAL, "Repayment deadline should advance");
+    }
+
     function test__Repay_BlacklistedLender_AllTranchesBlacklisted() public {
         uint256 principal = 300_000 * 1e6; // 300k USDC
 
@@ -791,6 +831,30 @@ contract LoanRouterRepayTest is BaseTest {
         // Verify router balance unchanged (attack failed)
         uint256 routerBalanceAfter = IERC20(USDC).balanceOf(address(loanRouter));
         assertEq(routerBalanceAfter, routerBalanceBefore, "Router balance should be unchanged after failed attack");
+    }
+}
+
+/*------------------------------------------------------------------------*/
+/* Malformed supportsInterface owner - returns 2 instead of 0 or 1 */
+/*------------------------------------------------------------------------*/
+
+contract MalformedSupportsInterfaceOwner is IERC721Receiver {
+    function supportsInterface(
+        bytes4
+    ) external pure returns (bool) {
+        assembly {
+            mstore(0x00, 2)
+            return(0x00, 0x20)
+        }
+    }
+
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
     }
 }
 

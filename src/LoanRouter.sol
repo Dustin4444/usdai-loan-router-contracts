@@ -662,7 +662,7 @@ contract LoanRouter is
             abi.encodeWithSelector(IERC165.supportsInterface.selector, type(ILoanRouterHooks).interfaceId)
         );
 
-        return success && returnData.length >= 32 && abi.decode(returnData, (bool));
+        return success && returnData.length == 32 && uint256(bytes32(returnData)) == 1;
     }
 
     /**
