@@ -15,6 +15,7 @@ contract Show is Deployer {
 
         console.log("loanRouter:                    %s", _deployment.loanRouter);
         console.log("depositTimelock:               %s", _deployment.depositTimelock);
+        console.log("escrowTimelock:                %s", _deployment.escrowTimelock);
         console.log("simpleInterestRateModel:       %s", _deployment.simpleInterestRateModel);
         console.log("amortizedInterestRateModel:    %s", _deployment.amortizedInterestRateModel);
         console.log("bundleCollateralWrapper:       %s", _deployment.bundleCollateralWrapper);

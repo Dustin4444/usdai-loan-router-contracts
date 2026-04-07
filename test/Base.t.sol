@@ -9,10 +9,12 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {LoanRouter} from "src/LoanRouter.sol";
 import {DepositTimelock} from "src/DepositTimelock.sol";
+import {EscrowTimelock} from "src/EscrowTimelock.sol";
 import {BundleCollateralWrapper} from "src/collateralWrappers/BundleCollateralWrapper.sol";
 import {AmortizedInterestRateModel} from "src/rates/AmortizedInterestRateModel.sol";
 import {LoanTermsLogic} from "src/LoanTermsLogic.sol";
@@ -98,6 +100,10 @@ abstract contract BaseTest is Test {
     DepositTimelock internal depositTimelock;
     TransparentUpgradeableProxy internal depositTimelockProxy;
 
+    EscrowTimelock internal escrowTimelockImpl;
+    EscrowTimelock internal escrowTimelock;
+    TransparentUpgradeableProxy internal escrowTimelockProxy;
+
     AmortizedInterestRateModel internal interestRateModel;
 
     TestERC721 internal testNFT;
@@ -142,6 +148,7 @@ abstract contract BaseTest is Test {
 
         // Deploy contracts
         deployDepositTimelock();
+        deployEscrowTimelock();
         deployLoanRouter();
         deployInterestRateModel();
 
@@ -174,6 +181,23 @@ abstract contract BaseTest is Test {
         // Grant ERC20 depositor role to lenders
         AccessControl(address(depositTimelock)).grantRole(keccak256("DEPOSITOR_ROLE"), users.lender1);
         AccessControl(address(depositTimelock)).grantRole(keccak256("DEPOSITOR_ROLE"), users.lender2);
+
+        vm.stopPrank();
+    }
+
+    function deployEscrowTimelock() internal {
+        vm.startPrank(users.deployer);
+
+        // Deploy proxy
+        escrowTimelockImpl = new EscrowTimelock(USDAI, STAKED_USDAI, users.admin);
+        escrowTimelockProxy = new TransparentUpgradeableProxy(
+            address(escrowTimelockImpl),
+            address(users.admin),
+            abi.encodeWithSignature("initialize(address)", users.deployer)
+        );
+
+        // Create interface
+        escrowTimelock = EscrowTimelock(address(escrowTimelockProxy));
 
         vm.stopPrank();
     }
@@ -308,6 +332,10 @@ abstract contract BaseTest is Test {
         deal(USDT, users.lender1, 10_000_000 * 1e6); // 10M USDT
         deal(USDT, users.lender2, 10_000_000 * 1e6); // 10M USDT
         deal(USDT, users.lender3, 10_000_000 * 1e6); // 10M USDT
+
+        // Fund sUSDai and escrow admin for EscrowTimelock tests
+        deal(USDAI, STAKED_USDAI, 10_000_000 * 1e18); // 10M USDai for sUSDai
+        deal(USDAI, users.admin, 100_000_000 * 1e18); // 100M USDai for escrow admin (covers interest)
     }
 
     function setApprovals() internal {
@@ -331,6 +359,21 @@ abstract contract BaseTest is Test {
             IERC20(USDT).approve(address(depositTimelock), type(uint256).max);
             vm.stopPrank();
         }
+
+        // sUSDai approves EscrowTimelock to spend its USDai (for deposits)
+        vm.prank(STAKED_USDAI);
+        IERC20(USDAI).approve(address(escrowTimelock), type(uint256).max);
+
+        // Escrow admin approves EscrowTimelock to spend its USDai (for cancel/withdraw interest)
+        vm.prank(users.admin);
+        IERC20(USDAI).approve(address(escrowTimelock), type(uint256).max);
+
+        // Mock sUSDai to accept ERC721 receipt tokens (forked contract may not implement IERC721Receiver)
+        vm.mockCall(
+            STAKED_USDAI,
+            abi.encodeWithSelector(IERC721Receiver.onERC721Received.selector),
+            abi.encode(IERC721Receiver.onERC721Received.selector)
+        );
     }
 
     /*------------------------------------------------------------------------*/
