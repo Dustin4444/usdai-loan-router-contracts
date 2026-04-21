@@ -685,7 +685,7 @@ contract LoanRouter is
         if (loanState_.status != LoanStatus.Active) return (0, 0, 0);
 
         /* If no repayment is due */
-        if (timestamp < loanState_.repaymentDeadline - loanTerms.repaymentInterval) return (0, 0, 0);
+        if (timestamp <= loanState_.repaymentDeadline - loanTerms.repaymentInterval) return (0, 0, 0);
 
         /* Calculate repayment due */
         (uint256 principalPayment, uint256 interestPayment,,,) = IInterestRateModel(loanTerms.interestRateModel)
