@@ -78,7 +78,11 @@ contract DeployProductionEnvironment is Deployer {
 
         // Deploy LoanRouterV2 implementation
         LoanRouterV2 loanRouterImpl = new LoanRouterV2(
-            feeRecipient, COLLATERAL_TIMELOCK_ADDRESS, DEPOSIT_TIMELOCK_ADDRESS, ESCROW_TIMELOCK_ADDRESS
+            feeRecipient,
+            COLLATERAL_TIMELOCK_ADDRESS,
+            DEPOSIT_TIMELOCK_ADDRESS,
+            ESCROW_TIMELOCK_ADDRESS,
+            LOAN_ROUTER_V1_ADDRESS
         );
         console.log("LoanRouterV2 implementation", address(loanRouterImpl));
 

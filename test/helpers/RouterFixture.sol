@@ -81,7 +81,11 @@ abstract contract RouterFixture is BaseTest {
         /* Deploy router behind ERC1967Proxy */
         vm.startPrank(users.deployer);
         routerImpl = new LoanRouterV2(
-            users.feeRecipient, address(collateralTimelock), address(depositTimelock), address(escrowTimelock)
+            users.feeRecipient,
+            address(collateralTimelock),
+            address(depositTimelock),
+            address(escrowTimelock),
+            loanRouter
         );
         routerProxy = new ERC1967Proxy(
             address(routerImpl), abi.encodeWithSelector(LoanRouterV2.initialize.selector, users.admin)

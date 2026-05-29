@@ -20,9 +20,11 @@ import "./interfaces/ILoanRouterV2.sol";
 import "./interfaces/ILoanRouterV2Hooks.sol";
 import "./interfaces/IInterestRateModelV2.sol";
 import "./interfaces/ICollateralTimelock.sol";
+import "./interfaces/ILoanRouterV1.sol";
 
 import "./LoanLogicV2.sol";
 import "./ScheduleLogic.sol";
+import "./MigrationLogic.sol";
 
 /**
  * @title Loan Router V2
@@ -64,6 +66,11 @@ contract LoanRouterV2 is
      * @notice Originator role
      */
     bytes32 internal constant ORIGINATOR_ROLE = keccak256("ORIGINATOR_ROLE");
+
+    /**
+     * @notice Migrator role
+     */
+    bytes32 internal constant MIGRATOR_ROLE = keccak256("MIGRATOR_ROLE");
 
     /**
      * @notice EIP-712 typehash for the loan terms approval payload
@@ -133,6 +140,11 @@ contract LoanRouterV2 is
      */
     address internal immutable _escrowTimelock;
 
+    /**
+     * @notice Loan Router V1
+     */
+    address internal immutable _loanRouterV1;
+
     /*------------------------------------------------------------------------*/
     /* Constructor */
     /*------------------------------------------------------------------------*/
@@ -143,12 +155,14 @@ contract LoanRouterV2 is
      * @param collateralTimelock_ Collateral timelock address
      * @param depositTimelock_ Deposit timelock
      * @param escrowTimelock_ Escrow timelock
+     * @param loanRouterV1_ V1 LoanRouter address
      */
     constructor(
         address feeRecipient_,
         address collateralTimelock_,
         address depositTimelock_,
-        address escrowTimelock_
+        address escrowTimelock_,
+        address loanRouterV1_
     ) {
         _disableInitializers();
 
@@ -161,6 +175,7 @@ contract LoanRouterV2 is
         _collateralTimelock = collateralTimelock_;
         _depositTimelock = depositTimelock_;
         _escrowTimelock = escrowTimelock_;
+        _loanRouterV1 = loanRouterV1_;
     }
 
     /*------------------------------------------------------------------------*/
@@ -281,10 +296,12 @@ contract LoanRouterV2 is
      * @notice Tokenize lender positions
      * @param loanTerms Loan terms
      * @param loanTermsHash_ Loan terms hash
+     * @param isMigration True if migrating a V1 loan
      */
     function _tokenizeLenderPositions(
         LoanTermsV2 calldata loanTerms,
-        bytes32 loanTermsHash_
+        bytes32 loanTermsHash_,
+        bool isMigration
     ) internal {
         /* Transfer tokenized lender positions to lenders */
         for (uint8 i; i < loanTerms.trancheSpecs.length; i++) {
@@ -306,8 +323,12 @@ contract LoanRouterV2 is
             /* Mint tokenized lender position */
             _safeMint(lender, tokenId);
 
-            /* Call onLoanOriginated hook if lender is a contract and implements ILoanRouterV2Hooks interface */
-            if (lender.code.length != 0 && IERC165(lender).supportsInterface(type(ILoanRouterV2Hooks).interfaceId)) {
+            /* Call onLoanOriginated hook if not migrating, lender is a contract, and implements ILoanRouterV2Hooks
+            interface */
+            if (
+                !isMigration && lender.code.length != 0
+                    && IERC165(lender).supportsInterface(type(ILoanRouterV2Hooks).interfaceId)
+            ) {
                 ILoanRouterV2Hooks(lender).onLoanOriginated(loanTerms, loanTermsHash_, i);
             }
 
@@ -533,7 +554,7 @@ contract LoanRouterV2 is
             LoanLogicV2.withdrawFunds(loanTerms, loanTermsHash_, lenderDepositInfos, _depositTimelock, _escrowTimelock);
 
         /* Tokenize lender positions and call onLoanOriginated hooks */
-        _tokenizeLenderPositions(loanTerms, loanTermsHash_);
+        _tokenizeLenderPositions(loanTerms, loanTermsHash_, false);
 
         /* Transfer funds to borrower */
         uint256 originationFee;
@@ -790,6 +811,49 @@ contract LoanRouterV2 is
 
         /* Emit liquidation proceeds deposited event */
         emit LiquidationProceedsDeposited(loanTermsHash_, proceeds, _unscale(scaledLiquidationFee, false), surplus);
+    }
+
+    /*------------------------------------------------------------------------*/
+    /* Migration API */
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * @inheritdoc ILoanRouterV2
+     */
+    function migrateLoan(
+        ILoanRouterV1.LoanTerms calldata loanTermsV1,
+        LoanTermsV2 calldata loanTermsV2,
+        uint64 originationTimestampV2_
+    ) external onlyRole(MIGRATOR_ROLE) nonReentrant {
+        /* Validate loan terms migration and compute new loan terms hash */
+        (bytes32 loanTermsHashV1, bytes32 loanTermsHashV2, uint64 originationTimestampV2, uint256 scaledBalanceV1) =
+            MigrationLogic.validateMigration(loanTermsV1, loanTermsV2, originationTimestampV2_, _loanRouterV1);
+
+        /* Validate V2 loan is not already active */
+        LoanState storage loan = _getLoansStorage().loans[loanTermsHashV2];
+        if (loan.status != LoanStatus.Uninitialized) revert InvalidLoanState();
+
+        /* Initialize V2 loan state */
+        loan.status = LoanStatus.Active;
+        loan.balance = scaledBalanceV1;
+        loan.repaymentCount = 0;
+        loan.originationTimestamp = originationTimestampV2;
+
+        /* Transfer collateral from V1 and unwrap bundle if applicable */
+        MigrationLogic.migrateLoanCollateral(loanTermsV1, _loanRouterV1);
+
+        /* Mint V2 lender position ERC721s */
+        _tokenizeLenderPositions(loanTermsV2, loanTermsHashV2, true);
+
+        /* Call onLoanMigrated hook */
+        ILoanRouterV2Hooks(loanTermsV2.trancheSpecs[0].lender)
+            .onLoanMigrated(loanTermsV1, loanTermsHashV1, loanTermsV2, loanTermsHashV2, originationTimestampV2_);
+
+        /* Pay owed escrow interest (if any) as origination fee */
+        LoanLogicV2.payFees(FeeKind.Origination, loanTermsV2, loan, loanTermsHashV2, 1, _feeRecipient, 0);
+
+        /* Emit loan migrated event */
+        emit LoanMigrated(loanTermsHashV1, loanTermsHashV2, abi.encode(loanTermsV2));
     }
 
     /*------------------------------------------------------------------------*/

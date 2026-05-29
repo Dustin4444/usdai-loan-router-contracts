@@ -39,7 +39,11 @@ contract LoanRouterV2InitializeTest is RouterFixture {
 
     function test__Initialize_RevertWhen_AdminZero() public {
         LoanRouterV2 impl = new LoanRouterV2(
-            users.feeRecipient, address(collateralTimelock), address(depositTimelock), address(escrowTimelock)
+            users.feeRecipient,
+            address(collateralTimelock),
+            address(depositTimelock),
+            address(escrowTimelock),
+            loanRouter
         );
         vm.expectRevert(ILoanRouterV2.InvalidAddress.selector);
         new ERC1967Proxy(address(impl), abi.encodeWithSelector(LoanRouterV2.initialize.selector, address(0)));
@@ -64,7 +68,11 @@ contract LoanRouterV2InitializeTest is RouterFixture {
 
     function _freshRouter() internal returns (LoanRouterV2) {
         LoanRouterV2 impl = new LoanRouterV2(
-            users.feeRecipient, address(collateralTimelock), address(depositTimelock), address(escrowTimelock)
+            users.feeRecipient,
+            address(collateralTimelock),
+            address(depositTimelock),
+            address(escrowTimelock),
+            loanRouter
         );
         ERC1967Proxy proxy =
             new ERC1967Proxy(address(impl), abi.encodeWithSelector(LoanRouterV2.initialize.selector, users.admin));

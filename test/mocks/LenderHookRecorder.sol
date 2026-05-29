@@ -4,6 +4,7 @@ pragma solidity 0.8.35;
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
+import {ILoanRouterV1} from "src/interfaces/ILoanRouterV1.sol";
 import {ILoanRouterV2Hooks} from "src/interfaces/ILoanRouterV2Hooks.sol";
 import {ILoanRouterV2} from "src/interfaces/ILoanRouterV2.sol";
 
@@ -22,6 +23,8 @@ contract LenderHookRecorder is ILoanRouterV2Hooks, IERC165, IERC721Receiver {
     uint8 public lastTrancheIndex;
 
     uint8 public lastFeeSpecIndex;
+    ILoanRouterV2.FeeKind public lastFeeKind;
+    address public lastFeeModel;
     uint256 public lastFeeAmount;
 
     function onLoanOriginated(
@@ -50,13 +53,15 @@ contract LenderHookRecorder is ILoanRouterV2Hooks, IERC165, IERC721Receiver {
     }
 
     function onLoanFeePaid(
-        ILoanRouterV2.LoanTermsV2 calldata,
+        ILoanRouterV2.LoanTermsV2 calldata loanTerms,
         bytes32,
         uint8 feeSpecIndex,
         uint256 fee
     ) external {
         onLoanFeePaidCalled = true;
         lastFeeSpecIndex = feeSpecIndex;
+        lastFeeKind = loanTerms.feeSpecs[feeSpecIndex].kind;
+        lastFeeModel = loanTerms.feeSpecs[feeSpecIndex].model;
         lastFeeAmount = fee;
     }
 
@@ -81,6 +86,14 @@ contract LenderHookRecorder is ILoanRouterV2Hooks, IERC165, IERC721Receiver {
         lastLiquidationPrincipal = principal;
         lastLiquidationInterest = interest;
     }
+
+    function onLoanMigrated(
+        ILoanRouterV1.LoanTerms calldata,
+        bytes32,
+        ILoanRouterV2.LoanTermsV2 calldata,
+        bytes32,
+        uint64
+    ) external {}
 
     function supportsInterface(
         bytes4 interfaceId

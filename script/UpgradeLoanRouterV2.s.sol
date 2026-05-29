@@ -12,7 +12,8 @@ import {Deployer} from "./utils/Deployer.s.sol";
 
 contract UpgradeLoanRouterV2 is Deployer {
     function run(
-        address feeRecipient
+        address feeRecipient,
+        address loanRouterV1
     ) public broadcast useDeployment returns (address) {
         if (_deployment.collateralTimelock == address(0x0)) revert MissingDependency();
         if (_deployment.depositTimelock == address(0x0)) revert MissingDependency();
@@ -21,7 +22,11 @@ contract UpgradeLoanRouterV2 is Deployer {
 
         // Deploy LoanRouterV2 implementation
         LoanRouterV2 loanRouterImpl = new LoanRouterV2(
-            feeRecipient, _deployment.collateralTimelock, _deployment.depositTimelock, _deployment.escrowTimelock
+            feeRecipient,
+            _deployment.collateralTimelock,
+            _deployment.depositTimelock,
+            _deployment.escrowTimelock,
+            loanRouterV1
         );
         console.log("LoanRouterV2 implementation", address(loanRouterImpl));
 
