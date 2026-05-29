@@ -14,21 +14,17 @@ interface IDepositTimelockHooks {
      * @notice Called when deposit is withdrawn
      * @param target Target contract
      * @param context Context identifier
-     * @param depositToken Deposit token address
-     * @param withdrawToken Withdraw token address
+     * @param token Token address
      * @param depositAmount Deposit amount
      * @param withdrawAmount Withdraw amount
-     * @param refundDepositAmount Refund deposit amount
-     * @param refundWithdrawAmount Refund withdraw amount
+     * @param refundAmount Refund amount
      */
     function onDepositWithdrawn(
         address target,
         bytes32 context,
-        address depositToken,
-        address withdrawToken,
+        address token,
         uint256 depositAmount,
         uint256 withdrawAmount,
-        uint256 refundDepositAmount,
-        uint256 refundWithdrawAmount
+        uint256 refundAmount
     ) external;
 }

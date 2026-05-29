@@ -159,7 +159,7 @@ contract DepositTimelockCancelTest is BaseTest {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
         uint256 depositAmount = 100_000 * 1e18; // 100k USDai (18 decimals)
-        uint256 minWithdrawAmount = 98_000 * 1e6; // 98k USDC (6 decimals) - allow 2% slippage
+        uint256 withdrawAmount = 98_000 * 1e18; // 98k USDai
         uint64 expiration = uint64(block.timestamp + 7 days);
 
         // Deposit
@@ -169,7 +169,7 @@ contract DepositTimelockCancelTest is BaseTest {
 
         // Withdraw (simulating loan borrow)
         vm.startPrank(target);
-        depositTimelock.withdraw(context, users.lender1, USDC, minWithdrawAmount, "");
+        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
         vm.stopPrank();
 
         // Try to cancel after withdrawal (should fail because deposit no longer exists)

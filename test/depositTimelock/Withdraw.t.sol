@@ -14,7 +14,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
         uint256 depositAmount = 100_000 * 1e18; // 100k USDai (18 decimals)
-        uint256 minWithdrawAmount = 98_000 * 1e6; // 98k USDC (6 decimals) - allow 2% slippage
+        uint256 withdrawAmount = 98_000 * 1e18; // 98k USDai - simulates principal draw
         uint64 expiration = uint64(block.timestamp + 7 days);
 
         // Deposit
@@ -22,26 +22,37 @@ contract DepositTimelockWithdrawTest is BaseTest {
         depositTimelock.deposit(target, context, USDAI, depositAmount, expiration);
         vm.stopPrank();
 
-        uint256 targetBalanceBefore = IERC20(USDC).balanceOf(target);
+        uint256 targetBalanceBefore = IERC20(USDAI).balanceOf(target);
+        uint256 depositorBalanceBefore = IERC20(USDAI).balanceOf(users.lender1);
 
         // Withdraw (called by target contract - the LoanRouter)
         vm.startPrank(target);
-        uint256 withdrawnAmount = depositTimelock.withdraw(context, users.lender1, USDC, minWithdrawAmount, "");
+        uint256 withdrawnAmount = depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
         vm.stopPrank();
 
-        // Verify withdrawn amount is approximately 100k USDC (allowing slippage)
-        assertGe(withdrawnAmount, minWithdrawAmount, "Should receive at least minimum amount");
-        assertLe(withdrawnAmount, 100_000 * 1e6, "Should not exceed nominal amount");
+        // Verify exact withdraw amount returned
+        assertEq(withdrawnAmount, withdrawAmount, "Withdrawn amount should equal requested amount");
 
-        // Verify target received USDC
-        uint256 targetBalanceAfter = IERC20(USDC).balanceOf(target);
-        assertEq(targetBalanceAfter - targetBalanceBefore, withdrawnAmount, "Target should receive withdrawn amount");
+        // Verify target received correct amount
+        assertEq(
+            IERC20(USDAI).balanceOf(target) - targetBalanceBefore,
+            withdrawAmount,
+            "Target should receive withdraw amount"
+        );
+
+        // Verify refund sent to depositor
+        uint256 expectedRefund = depositAmount - withdrawAmount;
+
+        assertEq(
+            IERC20(USDAI).balanceOf(users.lender1) - depositorBalanceBefore,
+            expectedRefund,
+            "Depositor should receive refund"
+        );
 
         // Verify deposit was deleted
-        (,,, address token, uint256 depositedAmount, uint64 depositExpiration) =
+        (,,,, uint256 depositedAmount, uint64 depositExpiration) =
             depositTimelock.depositInfo(depositTimelock.depositTokenId(users.lender1, target, context));
 
-        assertEq(token, address(0), "Token should be zero after withdraw");
         assertEq(depositedAmount, 0, "Amount should be zero after withdraw");
         assertEq(depositExpiration, 0, "Expiration should be zero after withdraw");
 
@@ -49,11 +60,33 @@ contract DepositTimelockWithdrawTest is BaseTest {
         assertEq(depositTimelock.balanceOf(users.lender1), 0, "Receipt token should be burned");
     }
 
+    function test__Withdraw_FullAmount_NoRefund() public {
+        address target = address(loanRouter);
+        bytes32 context = keccak256("test-context-full");
+        uint256 depositAmount = 100_000 * 1e18;
+        uint64 expiration = uint64(block.timestamp + 7 days);
+
+        // Deposit
+        vm.startPrank(users.lender1);
+        depositTimelock.deposit(target, context, USDAI, depositAmount, expiration);
+        vm.stopPrank();
+
+        uint256 depositorBalanceBefore = IERC20(USDAI).balanceOf(users.lender1);
+
+        // Withdraw full amount
+        vm.startPrank(target);
+        depositTimelock.withdraw(context, users.lender1, USDAI, depositAmount);
+        vm.stopPrank();
+
+        // No refund when full amount withdrawn
+        assertEq(IERC20(USDAI).balanceOf(users.lender1), depositorBalanceBefore, "No refund expected");
+    }
+
     function test__Withdraw_BeforeExpiration() public {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
-        uint256 depositAmount = 100_000 * 1e18; // 100k USDai (18 decimals)
-        uint256 minWithdrawAmount = 98_000 * 1e6; // 98k USDC (6 decimals) - allow 2% slippage
+        uint256 depositAmount = 100_000 * 1e18;
+        uint256 withdrawAmount = 98_000 * 1e18;
         uint64 expiration = uint64(block.timestamp + 7 days);
 
         // Deposit
@@ -66,7 +99,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
 
         // Should be able to withdraw before expiration
         vm.startPrank(target);
-        depositTimelock.withdraw(context, users.lender1, USDC, minWithdrawAmount, "");
+        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
         vm.stopPrank();
 
         // Verify withdrawal succeeded
@@ -82,8 +115,8 @@ contract DepositTimelockWithdrawTest is BaseTest {
     function test__Withdraw_RevertWhen_AfterExpiration() public {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
-        uint256 depositAmount = 100_000 * 1e18; // 100k USDai (18 decimals)
-        uint256 minWithdrawAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
+        uint256 depositAmount = 100_000 * 1e18;
+        uint256 withdrawAmount = 100_000 * 1e18;
         uint64 expiration = uint64(block.timestamp + 7 days);
 
         // Deposit
@@ -97,15 +130,15 @@ contract DepositTimelockWithdrawTest is BaseTest {
         // Try to withdraw after expiration (should fail)
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
-        depositTimelock.withdraw(context, users.lender1, USDC, minWithdrawAmount, "");
+        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
-    function test__Withdraw_RevertWhen_NotTarget() public {
+    function test__Withdraw_RevertWhen_CallerIsNotTarget() public {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
-        uint256 depositAmount = 100_000 * 1e18; // 100k USDai (18 decimals)
-        uint256 minWithdrawAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
+        uint256 depositAmount = 100_000 * 1e18;
+        uint256 withdrawAmount = 100_000 * 1e18;
         uint64 expiration = uint64(block.timestamp + 7 days);
 
         // Deposit
@@ -113,75 +146,72 @@ contract DepositTimelockWithdrawTest is BaseTest {
         depositTimelock.deposit(target, context, USDAI, depositAmount, expiration);
         vm.stopPrank();
 
-        // Try to withdraw as wrong address (not target)
+        // The contract has no separate caller-vs-target access check: msg.sender feeds the depositTokenId
+        // derivation, so a non-target caller looks up a different (nonexistent) deposit whose default
+        // expiration is 0. The first revert encountered is therefore InvalidTimestamp (block.timestamp > 0),
+        // not a dedicated access-control error.
         vm.startPrank(users.lender2);
-        // This will fail because the deposit doesn't exist for this msg.sender
         vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
-        depositTimelock.withdraw(context, users.lender1, USDC, minWithdrawAmount, "");
+        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
     function test__Withdraw_RevertWhen_UnsupportedToken() public {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
-        uint256 depositAmount = 100_000 * 1e6; // 100k USDT (6 decimals)
-        uint256 minWithdrawAmount = 100_000 * 1e18; // 100k USDAI (18 decimals)
+        uint256 depositAmount = 100_000 * 1e18;
+        uint256 withdrawAmount = 100_000 * 1e6;
         uint64 expiration = uint64(block.timestamp + 7 days);
 
-        // Remove swap adapter for USDT
-        vm.startPrank(users.deployer);
-        depositTimelock.removeSwapAdapter(USDT);
-        vm.stopPrank();
-
-        // Deposit USDT
+        // Deposit USDAI
         vm.startPrank(users.lender1);
-        IERC20(USDT).approve(address(depositTimelock), depositAmount);
-        depositTimelock.deposit(target, context, USDT, depositAmount, expiration);
+        depositTimelock.deposit(target, context, USDAI, depositAmount, expiration);
         vm.stopPrank();
 
+        // Withdraw with non-deposit token should fail
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.UnsupportedToken.selector);
-        depositTimelock.withdraw(context, users.lender1, USDAI, minWithdrawAmount, "");
+        depositTimelock.withdraw(context, users.lender1, USDC, withdrawAmount);
         vm.stopPrank();
     }
 
     function test__Withdraw_RevertWhen_DepositDoesNotExist() public {
         address target = address(loanRouter);
         bytes32 context = keccak256("nonexistent");
-        uint256 minWithdrawAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
+        uint256 withdrawAmount = 100_000 * 1e18;
 
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
-        depositTimelock.withdraw(context, users.lender1, USDC, minWithdrawAmount, "");
+        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
     function test__Withdraw_RevertWhen_ZeroContext() public {
         address target = address(loanRouter);
-        uint256 minWithdrawAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
+        uint256 withdrawAmount = 100_000 * 1e18;
 
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidBytes32.selector);
-        depositTimelock.withdraw(bytes32(0), users.lender1, USDC, minWithdrawAmount, "");
+        depositTimelock.withdraw(bytes32(0), users.lender1, USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
     function test__Withdraw_RevertWhen_ZeroDepositor() public {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
-        uint256 minWithdrawAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
+        uint256 withdrawAmount = 100_000 * 1e18;
 
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidAddress.selector);
-        depositTimelock.withdraw(context, address(0), USDC, minWithdrawAmount, "");
+        depositTimelock.withdraw(context, address(0), USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
     function test__Withdraw_RevertWhen_ZeroWithdrawToken() public {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
-        uint256 depositAmount = 100_000 * 1e18; // 100k USDai (18 decimals)
-        uint256 minWithdrawAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
+        uint256 depositAmount = 100_000 * 1e18;
+        uint256 withdrawAmount = 100_000 * 1e18;
         uint64 expiration = uint64(block.timestamp + 7 days);
 
         // Deposit
@@ -191,7 +221,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
 
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidAddress.selector);
-        depositTimelock.withdraw(context, users.lender1, address(0), minWithdrawAmount, "");
+        depositTimelock.withdraw(context, users.lender1, address(0), withdrawAmount);
         vm.stopPrank();
     }
 
@@ -202,8 +232,8 @@ contract DepositTimelockWithdrawTest is BaseTest {
     function test__Withdraw_Twice_ShouldFail() public {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
-        uint256 depositAmount = 100_000 * 1e18; // 100k USDai (18 decimals)
-        uint256 minWithdrawAmount = 98_000 * 1e6; // 98k USDC (6 decimals) - allow 2% slippage
+        uint256 depositAmount = 100_000 * 1e18;
+        uint256 withdrawAmount = 98_000 * 1e18;
         uint64 expiration = uint64(block.timestamp + 7 days);
 
         // Deposit
@@ -214,135 +244,12 @@ contract DepositTimelockWithdrawTest is BaseTest {
         vm.startPrank(target);
 
         // First withdrawal
-        depositTimelock.withdraw(context, users.lender1, USDC, minWithdrawAmount, "");
+        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
 
         // Second withdrawal should fail (deposit no longer exists)
         vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
-        depositTimelock.withdraw(context, users.lender1, USDC, minWithdrawAmount, "");
+        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
 
-        vm.stopPrank();
-    }
-
-    /*------------------------------------------------------------------------*/
-    /* Test: withdraw with UniswapV3SwapAdapter */
-    /*------------------------------------------------------------------------*/
-
-    function test__Withdraw_WithUniswapV3_Success() public {
-        address target = address(loanRouter);
-        bytes32 context = keccak256("test-context-uniswap");
-        uint256 depositAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
-        uint256 minWithdrawAmount = 99_000 * 1e6; // 98k USDT (6 decimals) - allow 2% slippage
-        uint64 expiration = uint64(block.timestamp + 7 days);
-
-        // Deposit USDC
-        vm.startPrank(users.lender1);
-        depositTimelock.deposit(target, context, USDC, depositAmount, expiration);
-        vm.stopPrank();
-
-        uint256 targetBalanceBefore = IERC20(USDT).balanceOf(target);
-
-        // Encode UniswapV3 path: USDT (output) - fee - USDC (input)
-        // Fee tier: 100 (0.01% - common for stablecoin pairs)
-        bytes memory path = abi.encodePacked(USDT, uint24(100), USDC);
-
-        // Withdraw to USDT using UniswapV3 (called by target contract - the LoanRouter)
-        vm.startPrank(target);
-        uint256 withdrawnAmount = depositTimelock.withdraw(context, users.lender1, USDT, minWithdrawAmount, path);
-        vm.stopPrank();
-
-        // Verify withdrawn amount is approximately 100k USDT (allowing slippage)
-        assertGe(withdrawnAmount, minWithdrawAmount, "Should receive at least minimum amount");
-        assertLe(withdrawnAmount, 100_000 * 1e6, "Should not exceed nominal amount");
-
-        // Verify target received USDT
-        uint256 targetBalanceAfter = IERC20(USDT).balanceOf(target);
-        assertEq(targetBalanceAfter - targetBalanceBefore, withdrawnAmount, "Target should receive withdrawn amount");
-
-        // Verify deposit was deleted
-        (,,, address token, uint256 depositedAmount, uint64 depositExpiration) =
-            depositTimelock.depositInfo(depositTimelock.depositTokenId(users.lender1, target, context));
-
-        assertEq(token, address(0), "Token should be zero after withdraw");
-        assertEq(depositedAmount, 0, "Amount should be zero after withdraw");
-        assertEq(depositExpiration, 0, "Expiration should be zero after withdraw");
-
-        // Verify receipt token was burned
-        assertEq(depositTimelock.balanceOf(users.lender1), 0, "Receipt token should be burned");
-    }
-
-    function test__Withdraw_WithUniswapV3_BeforeExpiration() public {
-        address target = address(loanRouter);
-        bytes32 context = keccak256("test-context-uniswap");
-        uint256 depositAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
-        uint256 minWithdrawAmount = 98_000 * 1e6; // 98k USDT (6 decimals) - allow 2% slippage
-        uint64 expiration = uint64(block.timestamp + 7 days);
-
-        // Deposit USDC
-        vm.startPrank(users.lender1);
-        depositTimelock.deposit(target, context, USDC, depositAmount, expiration);
-        vm.stopPrank();
-
-        // Warp to middle of timelock (before expiration)
-        vm.warp(block.timestamp + 3 days);
-
-        // Encode UniswapV3 path: USDT (output) - fee - USDC (input)
-        bytes memory path = abi.encodePacked(USDT, uint24(100), USDC);
-
-        // Should be able to withdraw before expiration
-        vm.startPrank(target);
-        depositTimelock.withdraw(context, users.lender1, USDT, minWithdrawAmount, path);
-        vm.stopPrank();
-
-        // Verify withdrawal succeeded
-        (,,,, uint256 depositedAmount,) =
-            depositTimelock.depositInfo(depositTimelock.depositTokenId(users.lender1, target, context));
-        assertEq(depositedAmount, 0, "Deposit should be withdrawn");
-    }
-
-    function test__Withdraw_WithUniswapV3_RevertWhen_AfterExpiration() public {
-        address target = address(loanRouter);
-        bytes32 context = keccak256("test-context-uniswap");
-        uint256 depositAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
-        uint256 minWithdrawAmount = 100_000 * 1e6; // 100k USDT (6 decimals)
-        uint64 expiration = uint64(block.timestamp + 7 days);
-
-        // Deposit USDC
-        vm.startPrank(users.lender1);
-        depositTimelock.deposit(target, context, USDC, depositAmount, expiration);
-        vm.stopPrank();
-
-        // Warp past expiration
-        vm.warp(expiration + 1);
-
-        // Encode UniswapV3 path: USDT (output) - fee - USDC (input)
-        bytes memory path = abi.encodePacked(USDT, uint24(100), USDC);
-
-        // Try to withdraw after expiration (should fail)
-        vm.startPrank(target);
-        vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
-        depositTimelock.withdraw(context, users.lender1, USDT, minWithdrawAmount, path);
-        vm.stopPrank();
-    }
-
-    function test__Withdraw_WithUniswapV3_RevertWhen_InvalidPath() public {
-        address target = address(loanRouter);
-        bytes32 context = keccak256("test-context-uniswap");
-        uint256 depositAmount = 100_000 * 1e6; // 100k USDC (6 decimals)
-        uint256 minWithdrawAmount = 98_000 * 1e6; // 98k USDT (6 decimals)
-        uint64 expiration = uint64(block.timestamp + 7 days);
-
-        // Deposit USDC
-        vm.startPrank(users.lender1);
-        depositTimelock.deposit(target, context, USDC, depositAmount, expiration);
-        vm.stopPrank();
-
-        // Encode wrong UniswapV3 path: USDT - USDC (missing fee)
-        bytes memory wrongPath = abi.encodePacked(USDT, USDC);
-
-        // Try to withdraw with invalid path (should fail)
-        vm.startPrank(target);
-        vm.expectRevert(); // Will revert with InvalidPathFormat or similar
-        depositTimelock.withdraw(context, users.lender1, USDT, minWithdrawAmount, wrongPath);
         vm.stopPrank();
     }
 }

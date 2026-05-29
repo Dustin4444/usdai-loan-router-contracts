@@ -6,90 +6,27 @@ import {IDepositTimelock} from "src/interfaces/IDepositTimelock.sol";
 
 contract DepositTimelockAdminTest is BaseTest {
     /*------------------------------------------------------------------------*/
-    /* Test: addSwapAdapter */
+    /* Test: withdraw */
     /*------------------------------------------------------------------------*/
 
-    function test__AddSwapAdapter_Success() public {
-        address newToken = makeAddr("newToken");
-        address newSwapAdapter = makeAddr("newSwapAdapter");
-
-        vm.startPrank(users.deployer);
-        vm.expectEmit(true, true, true, true);
-        emit IDepositTimelock.SwapAdapterAdded(newToken, newSwapAdapter);
-        depositTimelock.addSwapAdapter(newToken, newSwapAdapter);
-        vm.stopPrank();
-    }
-
-    function test__AddSwapAdapter_UpdateExisting() public {
-        address token = USDAI;
-        address newSwapAdapter = makeAddr("newSwapAdapter");
-
-        vm.startPrank(users.deployer);
-
-        // Update existing swap adapter
-        depositTimelock.addSwapAdapter(token, newSwapAdapter);
-
-        vm.stopPrank();
-    }
-
-    function test__AddSwapAdapter_RevertWhen_NotAdmin() public {
-        address newToken = makeAddr("newToken");
-        address newSwapAdapter = makeAddr("newSwapAdapter");
-
-        vm.startPrank(users.borrower);
-        vm.expectRevert();
-        depositTimelock.addSwapAdapter(newToken, newSwapAdapter);
-        vm.stopPrank();
-    }
-
-    /*------------------------------------------------------------------------*/
-    /* Test: removeSwapAdapter */
-    /*------------------------------------------------------------------------*/
-
-    function test__RemoveSwapAdapter_Success() public {
-        address token = USDAI;
-
-        vm.startPrank(users.deployer);
-        vm.expectEmit(true, true, true, true);
-        emit IDepositTimelock.SwapAdapterRemoved(token);
-        depositTimelock.removeSwapAdapter(token);
-        vm.stopPrank();
-
+    function test__Withdraw_RevertWhen_WrongToken() public {
         address target = address(loanRouter);
         bytes32 context = keccak256("test-context");
         uint256 amount = 100_000 * 1e18;
         uint64 expiration = uint64(block.timestamp + 7 days);
 
-        // Deposit
+        /* Make a valid deposit */
         vm.startPrank(users.lender1);
-        depositTimelock.deposit(target, context, token, amount, expiration);
+        depositTimelock.deposit(target, context, USDAI, amount, expiration);
         vm.stopPrank();
 
-        // Warp to middle of timelock (before expiration)
+        /* Warp to middle of timelock */
         vm.warp(block.timestamp + 3 days);
 
-        // Try to withdraw to another token (should fail)
+        /* Withdraw with non-deposit token should fail */
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.UnsupportedToken.selector);
-        depositTimelock.withdraw(context, users.lender1, USDC, amount, "");
-        vm.stopPrank();
-    }
-
-    function test__RemoveSwapAdapter_NonExistent() public {
-        address nonExistentToken = makeAddr("nonExistentToken");
-
-        vm.startPrank(users.deployer);
-        // Should not revert, just emit event
-        depositTimelock.removeSwapAdapter(nonExistentToken);
-        vm.stopPrank();
-    }
-
-    function test__RemoveSwapAdapter_RevertWhen_NotAdmin() public {
-        address token = USDAI;
-
-        vm.startPrank(users.borrower);
-        vm.expectRevert();
-        depositTimelock.removeSwapAdapter(token);
+        depositTimelock.withdraw(context, users.lender1, USDC, amount);
         vm.stopPrank();
     }
 
@@ -117,12 +54,12 @@ contract DepositTimelockAdminTest is BaseTest {
     function test__AccessControl_RevokeRole() public {
         bytes32 defaultAdminRole = 0x00;
 
-        // Grant role first
+        /* Grant role first */
         vm.startPrank(users.deployer);
         depositTimelock.grantRole(defaultAdminRole, users.admin);
         assertTrue(depositTimelock.hasRole(defaultAdminRole, users.admin));
 
-        // Revoke role
+        /* Revoke role */
         depositTimelock.revokeRole(defaultAdminRole, users.admin);
         vm.stopPrank();
 

@@ -435,8 +435,7 @@ contract LoanRouter is
                         loanTermsHash_,
                         loanTerms.trancheSpecs[i].lender,
                         loanTerms.currencyToken,
-                        loanTerms.trancheSpecs[i].amount,
-                        lenderDepositInfos[i].data
+                        loanTerms.trancheSpecs[i].amount
                     );
             } else {
                 /* Transfer borrow token from lender */

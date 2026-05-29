@@ -15,8 +15,6 @@ import {LoanRouter} from "src/LoanRouter.sol";
 import {DepositTimelock} from "src/DepositTimelock.sol";
 import {BundleCollateralWrapper} from "src/collateralWrappers/BundleCollateralWrapper.sol";
 import {AmortizedInterestRateModel} from "src/rates/AmortizedInterestRateModel.sol";
-import {USDaiSwapAdapter} from "src/swapAdapters/USDaiSwapAdapter.sol";
-import {UniswapV3SwapAdapter} from "src/swapAdapters/UniswapV3SwapAdapter.sol";
 import {LoanTermsLogic} from "src/LoanTermsLogic.sol";
 import {ILoanRouter} from "src/interfaces/ILoanRouter.sol";
 
@@ -101,8 +99,6 @@ abstract contract BaseTest is Test {
     TransparentUpgradeableProxy internal depositTimelockProxy;
 
     AmortizedInterestRateModel internal interestRateModel;
-    USDaiSwapAdapter internal usdaiSwapAdapter;
-    UniswapV3SwapAdapter internal uniswapV3SwapAdapter;
 
     TestERC721 internal testNFT;
 
@@ -148,8 +144,6 @@ abstract contract BaseTest is Test {
         deployDepositTimelock();
         deployLoanRouter();
         deployInterestRateModel();
-        deployUSDaiSwapAdapter();
-        deployUniswapV3SwapAdapter();
 
         // Setup
         setupCollateralWrapper();
@@ -206,18 +200,6 @@ abstract contract BaseTest is Test {
     function deployInterestRateModel() internal {
         vm.startPrank(users.deployer);
         interestRateModel = new AmortizedInterestRateModel();
-        vm.stopPrank();
-    }
-
-    function deployUSDaiSwapAdapter() internal {
-        vm.startPrank(users.deployer);
-        usdaiSwapAdapter = new USDaiSwapAdapter(USDAI);
-        vm.stopPrank();
-    }
-
-    function deployUniswapV3SwapAdapter() internal {
-        vm.startPrank(users.deployer);
-        uniswapV3SwapAdapter = new UniswapV3SwapAdapter(UNISWAP_V3_ROUTER);
         vm.stopPrank();
     }
 
@@ -345,13 +327,6 @@ abstract contract BaseTest is Test {
             IERC20(USDT).approve(address(depositTimelock), type(uint256).max);
             vm.stopPrank();
         }
-
-        // Setup swap adapter for USDAI in deposit timelock
-        vm.startPrank(users.deployer);
-        depositTimelock.addSwapAdapter(USDAI, address(usdaiSwapAdapter));
-        depositTimelock.addSwapAdapter(USDC, address(uniswapV3SwapAdapter));
-        depositTimelock.addSwapAdapter(USDT, address(uniswapV3SwapAdapter));
-        vm.stopPrank();
     }
 
     /*------------------------------------------------------------------------*/

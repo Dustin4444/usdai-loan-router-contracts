@@ -45,7 +45,7 @@ interface IDepositTimelock {
     /*------------------------------------------------------------------------*/
 
     /**
-     * @notice Emitted when deposit is made
+     * @notice Emitted when a deposit is made
      * @param depositor Depositor address
      * @param target Target contract that can withdraw
      * @param context Context identifier
@@ -63,7 +63,7 @@ interface IDepositTimelock {
     );
 
     /**
-     * @notice Emitted when deposit is canceled
+     * @notice Emitted when a deposit is canceled
      * @param depositor Depositor address
      * @param target Target contract
      * @param context Context identifier
@@ -72,41 +72,24 @@ interface IDepositTimelock {
     event Canceled(address indexed depositor, address indexed target, bytes32 indexed context, uint256 amount);
 
     /**
-     * @notice Emitted when deposit is withdrawn
+     * @notice Emitted when a deposit is withdrawn
      * @param depositor Depositor address
-     * @param withdrawer Withdrawer address
+     * @param target Target address
      * @param context Context identifier
-     * @param depositToken Deposit token address
-     * @param withdrawToken Withdraw token address
+     * @param token Token address
      * @param depositAmount Deposit amount
      * @param withdrawAmount Withdraw amount
-     * @param refundDepositAmount Deposit amount refunded
-     * @param refundWithdrawAmount Withdraw amount refunded
+     * @param refundAmount Deposit amount refunded
      */
     event Withdrawn(
         address indexed depositor,
-        address indexed withdrawer,
+        address indexed target,
         bytes32 indexed context,
-        address depositToken,
-        address withdrawToken,
+        address token,
         uint256 depositAmount,
         uint256 withdrawAmount,
-        uint256 refundDepositAmount,
-        uint256 refundWithdrawAmount
+        uint256 refundAmount
     );
-
-    /**
-     * @notice Emitted when swap adapter is added
-     * @param token Token address
-     * @param swapAdapter Swap adapter address
-     */
-    event SwapAdapterAdded(address indexed token, address indexed swapAdapter);
-
-    /**
-     * @notice Emitted when swap adapter is removed
-     * @param token Token address
-     */
-    event SwapAdapterRemoved(address indexed token);
 
     /*------------------------------------------------------------------------*/
     /* Getters */
@@ -178,41 +161,17 @@ interface IDepositTimelock {
     /*------------------------------------------------------------------------*/
 
     /**
-     * @notice Withdraw deposit (only callable by target before expiration)
+     * @notice Withdraw deposit before expiration
      * @param context Context identifier
      * @param depositor Depositor address
-     * @param withdrawToken Token to withdraw
-     * @param amount Minimum amount to withdraw
-     * @param swapData Swap data
+     * @param token Token address
+     * @param amount Amount to withdraw
      * @return Withdraw amount
      */
     function withdraw(
         bytes32 context,
         address depositor,
-        address withdrawToken,
-        uint256 amount,
-        bytes calldata swapData
-    ) external returns (uint256);
-
-    /*------------------------------------------------------------------------*/
-    /* Permissioned API */
-    /*------------------------------------------------------------------------*/
-
-    /**
-     * @notice Add swap adapter
-     * @param token Token address
-     * @param swapAdapter Swap adapter address
-     */
-    function addSwapAdapter(
         address token,
-        address swapAdapter
-    ) external;
-
-    /**
-     * @notice Remove swap adapter
-     * @param token Token address
-     */
-    function removeSwapAdapter(
-        address token
-    ) external;
+        uint256 amount
+    ) external returns (uint256);
 }
