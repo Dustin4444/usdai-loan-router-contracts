@@ -41,6 +41,11 @@ contract DepositTimelock is
     bytes32 private constant DEPOSITS_STORAGE_LOCATION =
         0x7acdc53704e8fe7c86714ac2b064371f82f2d965ecacce8d646be33eba1fa900;
 
+    /**
+     * @notice Depositor role
+     */
+    bytes32 internal constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
+
     /*------------------------------------------------------------------------*/
     /* Structures */
     /*------------------------------------------------------------------------*/
@@ -222,6 +227,7 @@ contract DepositTimelock is
         uint64 expiration
     )
         external
+        onlyRole(DEPOSITOR_ROLE)
         nonZeroAddress(target)
         nonZeroAddress(token)
         nonZeroUint(amount)
@@ -340,9 +346,7 @@ contract DepositTimelock is
         if (depositor.code.length != 0 && IERC165(depositor).supportsInterface(type(IDepositTimelockHooks).interfaceId))
         {
             IDepositTimelockHooks(depositor)
-                .onDepositWithdrawn(
-                    msg.sender, context, deposit_.token, deposit_.amount, amount, refundAmount
-                );
+                .onDepositWithdrawn(msg.sender, context, deposit_.token, deposit_.amount, amount, refundAmount);
         }
 
         /* Emit withdrawn event */

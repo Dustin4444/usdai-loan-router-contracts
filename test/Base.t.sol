@@ -171,6 +171,10 @@ abstract contract BaseTest is Test {
         // Create interface
         depositTimelock = DepositTimelock(address(depositTimelockProxy));
 
+        // Grant ERC20 depositor role to lenders
+        AccessControl(address(depositTimelock)).grantRole(keccak256("DEPOSITOR_ROLE"), users.lender1);
+        AccessControl(address(depositTimelock)).grantRole(keccak256("DEPOSITOR_ROLE"), users.lender2);
+
         vm.stopPrank();
     }
 
