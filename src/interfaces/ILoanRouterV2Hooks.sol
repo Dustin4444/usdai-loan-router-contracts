@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {ILoanRouter} from "./ILoanRouter.sol";
+import {ILoanRouterV2} from "./ILoanRouterV2.sol";
 
 /**
- * @title Loan Router Callback Hooks
+ * @title Loan Router V2 Callback Hooks
  * @author USD.AI Foundation
  */
-interface ILoanRouterHooks {
-    /*------------------------------------------------------------------------*/
-    /* Public API */
-    /*------------------------------------------------------------------------*/
-
+interface ILoanRouterV2Hooks {
     /**
      * @notice Called when loan is originated
      * @param loanTerms Loan terms
@@ -19,7 +15,7 @@ interface ILoanRouterHooks {
      * @param trancheIndex Tranche index
      */
     function onLoanOriginated(
-        ILoanRouter.LoanTerms calldata loanTerms,
+        ILoanRouterV2.LoanTermsV2 calldata loanTerms,
         bytes32 loanTermsHash,
         uint8 trancheIndex
     ) external;
@@ -30,12 +26,12 @@ interface ILoanRouterHooks {
      * @param loanTermsHash Loan terms hash
      * @param trancheIndex Tranche index
      * @param loanBalance Loan balance
-     * @param principal Principal amount
-     * @param interest Interest amount
-     * @param prepay Prepay amount
+     * @param principal Principal repaid
+     * @param interest Interest paid
+     * @param prepay Prepayment
      */
     function onLoanRepayment(
-        ILoanRouter.LoanTerms calldata loanTerms,
+        ILoanRouterV2.LoanTermsV2 calldata loanTerms,
         bytes32 loanTermsHash,
         uint8 trancheIndex,
         uint256 loanBalance,
@@ -45,13 +41,27 @@ interface ILoanRouterHooks {
     ) external;
 
     /**
+     * @notice Called when loan fee is paid
+     * @param loanTerms Loan terms
+     * @param loanTermsHash Loan terms hash
+     * @param feeSpecIndex Fee specification index
+     * @param fee Fee paid
+     */
+    function onLoanFeePaid(
+        ILoanRouterV2.LoanTermsV2 calldata loanTerms,
+        bytes32 loanTermsHash,
+        uint8 feeSpecIndex,
+        uint256 fee
+    ) external;
+
+    /**
      * @notice Called when loan is liquidated
      * @param loanTerms Loan terms
      * @param loanTermsHash Loan terms hash
      * @param trancheIndex Tranche index
      */
     function onLoanLiquidated(
-        ILoanRouter.LoanTerms calldata loanTerms,
+        ILoanRouterV2.LoanTermsV2 calldata loanTerms,
         bytes32 loanTermsHash,
         uint8 trancheIndex
     ) external;
@@ -61,11 +71,11 @@ interface ILoanRouterHooks {
      * @param loanTerms Loan terms
      * @param loanTermsHash Loan terms hash
      * @param trancheIndex Tranche index
-     * @param principal Principal amount
-     * @param interest Interest amount
+     * @param principal Principal repaid
+     * @param interest Interest paid
      */
     function onLoanCollateralLiquidated(
-        ILoanRouter.LoanTerms calldata loanTerms,
+        ILoanRouterV2.LoanTermsV2 calldata loanTerms,
         bytes32 loanTermsHash,
         uint8 trancheIndex,
         uint256 principal,

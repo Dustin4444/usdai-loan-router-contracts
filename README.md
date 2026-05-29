@@ -18,6 +18,7 @@ Test:
 
 ```shell
 $ forge test
+$ FOUNDRY_PROFILE=exhaustive forge test --ffi --match-contract DateTimeLibDifferentialTest
 ```
 
 ## Update Submodules

@@ -13,13 +13,14 @@ contract Show is Deployer {
         /* Deserialize */
         _deserialize();
 
-        console.log("loanRouter:                    %s", _deployment.loanRouter);
+        console.log("loanRouterV2:                  %s", _deployment.loanRouterV2);
+        console.log("collateralTimelock:            %s", _deployment.collateralTimelock);
         console.log("depositTimelock:               %s", _deployment.depositTimelock);
         console.log("escrowTimelock:                %s", _deployment.escrowTimelock);
         console.log("simpleInterestRateModel:       %s", _deployment.simpleInterestRateModel);
         console.log("amortizedInterestRateModel:    %s", _deployment.amortizedInterestRateModel);
-        console.log("bundleCollateralWrapper:       %s", _deployment.bundleCollateralWrapper);
-        console.log("externalCollateralLiquidator:  %s", _deployment.externalCollateralLiquidator);
+        console.log("absoluteFeeModel:              %s", _deployment.absoluteFeeModel);
+        console.log("ratioFeeModel:                 %s", _deployment.ratioFeeModel);
 
         console.log("Printing deployments completed");
     }

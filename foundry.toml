@@ -12,6 +12,9 @@ block_gas_limit = 10000000000
 ignored_error_codes = ["unreachable", "transient-storage"]
 ignored_warnings_from = ["test", "lib"]
 
+[profile.exhaustive]
+ffi = true
+
 [fmt]
 bracket_spacing = false
 int_types = "long"
@@ -22,4 +25,4 @@ tab_width = 4
 wrap_comments = true
 
 [lint]
-exclude_lints = ["mixed-case-variable", "unaliased-plain-import", "mixed-case-function", "screaming-snake-case-immutable", "erc20-unchecked-transfer", "asm-keccak256", "unwrapped-modifier-logic", "unsafe-typecast"]
+exclude_lints = ["mixed-case-variable", "unaliased-plain-import", "mixed-case-function", "screaming-snake-case-immutable", "erc20-unchecked-transfer", "asm-keccak256", "unwrapped-modifier-logic", "unsafe-typecast", "pascal-case-struct", "unsafe-cheatcode"]

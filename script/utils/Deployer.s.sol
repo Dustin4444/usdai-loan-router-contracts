@@ -22,14 +22,14 @@ contract Deployer is BaseScript {
     /*--------------------------------------------------------------------------*/
 
     struct Deployment {
-        address loanRouter;
+        address loanRouterV2;
         address depositTimelock;
         address escrowTimelock;
         address collateralTimelock;
         address simpleInterestRateModel;
         address amortizedInterestRateModel;
-        address bundleCollateralWrapper;
-        address externalCollateralLiquidator;
+        address absoluteFeeModel;
+        address ratioFeeModel;
     }
 
     /*--------------------------------------------------------------------------*/
@@ -104,14 +104,14 @@ contract Deployer is BaseScript {
         /* Initialize json string */
         string memory json = "";
 
-        json = stdJson.serialize("", "loanRouter", _deployment.loanRouter);
+        json = stdJson.serialize("", "loanRouterV2", _deployment.loanRouterV2);
         json = stdJson.serialize("", "depositTimelock", _deployment.depositTimelock);
         json = stdJson.serialize("", "escrowTimelock", _deployment.escrowTimelock);
         json = stdJson.serialize("", "collateralTimelock", _deployment.collateralTimelock);
         json = stdJson.serialize("", "simpleInterestRateModel", _deployment.simpleInterestRateModel);
         json = stdJson.serialize("", "amortizedInterestRateModel", _deployment.amortizedInterestRateModel);
-        json = stdJson.serialize("", "bundleCollateralWrapper", _deployment.bundleCollateralWrapper);
-        json = stdJson.serialize("", "externalCollateralLiquidator", _deployment.externalCollateralLiquidator);
+        json = stdJson.serialize("", "absoluteFeeModel", _deployment.absoluteFeeModel);
+        json = stdJson.serialize("", "ratioFeeModel", _deployment.ratioFeeModel);
 
         console.log("Writing json to file: %s\n", json);
         vm.writeJson(json, _getJsonFilePath());
@@ -125,11 +125,11 @@ contract Deployer is BaseScript {
     function _deserialize() internal {
         string memory json = _getJson();
 
-        /* Deserialize loanRouter */
-        try vm.parseJsonAddress(json, ".loanRouter") returns (address instance) {
-            _deployment.loanRouter = instance;
+        /* Deserialize loanRouterV2 */
+        try vm.parseJsonAddress(json, ".loanRouterV2") returns (address instance) {
+            _deployment.loanRouterV2 = instance;
         } catch {
-            console.log("Could not parse loanRouter");
+            console.log("Could not parse loanRouterV2");
         }
 
         /* Deserialize depositTimelock */
@@ -167,18 +167,18 @@ contract Deployer is BaseScript {
             console.log("Could not parse amortizedInterestRateModel");
         }
 
-        /* Deserialize bundleCollateralWrapper */
-        try vm.parseJsonAddress(json, ".bundleCollateralWrapper") returns (address instance) {
-            _deployment.bundleCollateralWrapper = instance;
+        /* Deserialize absoluteFeeModel */
+        try vm.parseJsonAddress(json, ".absoluteFeeModel") returns (address instance) {
+            _deployment.absoluteFeeModel = instance;
         } catch {
-            console.log("Could not parse bundleCollateralWrapper");
+            console.log("Could not parse absoluteFeeModel");
         }
 
-        /* Deserialize externalCollateralLiquidator */
-        try vm.parseJsonAddress(json, ".externalCollateralLiquidator") returns (address instance) {
-            _deployment.externalCollateralLiquidator = instance;
+        /* Deserialize ratioFeeModel */
+        try vm.parseJsonAddress(json, ".ratioFeeModel") returns (address instance) {
+            _deployment.ratioFeeModel = instance;
         } catch {
-            console.log("Could not parse externalCollateralLiquidator");
+            console.log("Could not parse ratioFeeModel");
         }
     }
 }
