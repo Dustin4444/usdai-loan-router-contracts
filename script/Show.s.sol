@@ -21,6 +21,7 @@ contract Show is Deployer {
         console.log("amortizedInterestRateModel:    %s", _deployment.amortizedInterestRateModel);
         console.log("absoluteFeeModel:              %s", _deployment.absoluteFeeModel);
         console.log("ratioFeeModel:                 %s", _deployment.ratioFeeModel);
+        console.log("reserveAccountBeacon:          %s", _deployment.reserveAccountBeacon);
 
         console.log("Printing deployments completed");
     }

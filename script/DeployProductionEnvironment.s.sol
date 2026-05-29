@@ -4,11 +4,13 @@ pragma solidity 0.8.35;
 import "forge-std/Script.sol";
 
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 
 import {DepositTimelock} from "src/DepositTimelock.sol";
 import {EscrowTimelock} from "src/EscrowTimelock.sol";
 import {CollateralTimelock} from "src/CollateralTimelock.sol";
 import {LoanRouterV2} from "src/LoanRouterV2.sol";
+import {ReserveAccount} from "src/ReserveAccount.sol";
 import {SimpleInterestRateModel} from "src/rates/SimpleInterestRateModel.sol";
 import {AbsoluteFeeModel} from "src/fees/AbsoluteFeeModel.sol";
 import {RatioFeeModel} from "src/fees/RatioFeeModel.sol";
@@ -46,12 +48,16 @@ contract DeployProductionEnvironment is Deployer {
     address internal constant LOAN_ROUTER_V2_ADDRESS = address(0x1C2ED170de32846316784c4fd58A5e3C7563E12f);
     bytes32 internal constant LOAN_ROUTER_V2_SALT = 0x783b08aa21de056717173f72e04be0e91328a07b003eda62a188da7a03594529;
 
+    address internal constant RESERVE_ACCOUNT_BEACON_ADDRESS = address(0x12E5E200a56A24a1CA2aF175F66574c623ADe6B1);
+    bytes32 internal constant RESERVE_ACCOUNT_BEACON_SALT =
+        0x783b08aa21de056717173f72e04be0e91328a07b0050cb6e0cd381e301acefcc;
+
     function run(
         address deployer,
         address admin,
         address feeRecipient,
         address escrowAdmin
-    ) public broadcast useDeployment returns (address, address, address, address, address, address, address) {
+    ) public broadcast useDeployment returns (address, address, address, address, address, address, address, address) {
         // Deploy CollateralTimelock implementation
         CollateralTimelock collateralTimelockImpl = new CollateralTimelock();
         console.log("CollateralTimelock implementation", address(collateralTimelockImpl));
@@ -85,6 +91,10 @@ contract DeployProductionEnvironment is Deployer {
             LOAN_ROUTER_V1_ADDRESS
         );
         console.log("LoanRouterV2 implementation", address(loanRouterImpl));
+
+        // Deploy ReserveAccount implementation
+        ReserveAccount reserveAccountImpl = new ReserveAccount(admin, LOAN_ROUTER_V2_ADDRESS);
+        console.log("ReserveAccount implementation", address(reserveAccountImpl));
 
         // Prepare Create3 Calldata for Collateral Timelock Proxy
         if (
@@ -164,6 +174,19 @@ contract DeployProductionEnvironment is Deployer {
             )
         );
 
+        // Prepare Create3 Calldata for Reserve Account Beacon
+        if (
+            CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, RESERVE_ACCOUNT_BEACON_SALT)))
+                != RESERVE_ACCOUNT_BEACON_ADDRESS
+        ) {
+            revert("Invalid salt");
+        }
+        bytes memory reserveAccountBeaconCreate3Calldata = abi.encodeWithSelector(
+            ICreateX.deployCreate3.selector,
+            RESERVE_ACCOUNT_BEACON_SALT,
+            abi.encodePacked(type(UpgradeableBeacon).creationCode, abi.encode(address(reserveAccountImpl), deployer))
+        );
+
         // Print calldata
         console.log("");
         console.log("from deployer multisig");
@@ -176,6 +199,8 @@ contract DeployProductionEnvironment is Deployer {
         console.logBytes(escrowTimelockProxyCreate3Calldata);
         console.log("Loan Router proxy calldata");
         console.logBytes(loanRouterProxyCreate3Calldata);
+        console.log("Reserve Account Beacon calldata");
+        console.logBytes(reserveAccountBeaconCreate3Calldata);
 
         // Update deployment
         _deployment.collateralTimelock = COLLATERAL_TIMELOCK_ADDRESS;
@@ -185,6 +210,7 @@ contract DeployProductionEnvironment is Deployer {
         _deployment.simpleInterestRateModel = address(simpleInterestRateModel);
         _deployment.absoluteFeeModel = address(absoluteFeeModel);
         _deployment.ratioFeeModel = address(ratioFeeModel);
+        _deployment.reserveAccountBeacon = RESERVE_ACCOUNT_BEACON_ADDRESS;
 
         return (
             COLLATERAL_TIMELOCK_ADDRESS,
@@ -193,7 +219,8 @@ contract DeployProductionEnvironment is Deployer {
             LOAN_ROUTER_V2_ADDRESS,
             address(simpleInterestRateModel),
             address(absoluteFeeModel),
-            address(ratioFeeModel)
+            address(ratioFeeModel),
+            RESERVE_ACCOUNT_BEACON_ADDRESS
         );
     }
 }
