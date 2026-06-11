@@ -307,11 +307,11 @@ contract DepositTimelock is
      * @inheritdoc IDepositTimelock
      */
     function withdraw(
-        bytes32 context,
         address depositor,
+        bytes32 context,
         address token,
         uint256 amount
-    ) external nonZeroBytes32(context) nonZeroAddress(depositor) nonZeroAddress(token) nonReentrant returns (uint256) {
+    ) external nonZeroAddress(depositor) nonZeroBytes32(context) nonZeroAddress(token) nonReentrant returns (uint256) {
         /* Compute token ID */
         uint256 tokenId = _depositTokenId(depositor, msg.sender, context);
 

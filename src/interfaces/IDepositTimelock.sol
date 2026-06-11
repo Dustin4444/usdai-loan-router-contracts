@@ -162,15 +162,15 @@ interface IDepositTimelock {
 
     /**
      * @notice Withdraw deposit before expiration
-     * @param context Context identifier
      * @param depositor Depositor address
+     * @param context Context identifier
      * @param token Token address
      * @param amount Amount to withdraw
      * @return Withdraw amount
      */
     function withdraw(
-        bytes32 context,
         address depositor,
+        bytes32 context,
         address token,
         uint256 amount
     ) external returns (uint256);

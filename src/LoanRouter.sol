@@ -432,8 +432,8 @@ contract LoanRouter is
                 /* Withdraw borrow token from deposit timelock */
                 IDepositTimelock(_depositTimelock)
                     .withdraw(
-                        loanTermsHash_,
                         loanTerms.trancheSpecs[i].lender,
+                        loanTermsHash_,
                         loanTerms.currencyToken,
                         loanTerms.trancheSpecs[i].amount
                     );

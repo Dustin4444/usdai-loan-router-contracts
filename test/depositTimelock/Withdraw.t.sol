@@ -27,7 +27,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
 
         // Withdraw (called by target contract - the LoanRouter)
         vm.startPrank(target);
-        uint256 withdrawnAmount = depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
+        uint256 withdrawnAmount = depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
         vm.stopPrank();
 
         // Verify exact withdraw amount returned
@@ -75,7 +75,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
 
         // Withdraw full amount
         vm.startPrank(target);
-        depositTimelock.withdraw(context, users.lender1, USDAI, depositAmount);
+        depositTimelock.withdraw(users.lender1, context, USDAI, depositAmount);
         vm.stopPrank();
 
         // No refund when full amount withdrawn
@@ -99,7 +99,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
 
         // Should be able to withdraw before expiration
         vm.startPrank(target);
-        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
+        depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
         vm.stopPrank();
 
         // Verify withdrawal succeeded
@@ -130,7 +130,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
         // Try to withdraw after expiration (should fail)
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
-        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
+        depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
@@ -152,7 +152,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
         // not a dedicated access-control error.
         vm.startPrank(users.lender2);
         vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
-        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
+        depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
@@ -171,7 +171,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
         // Withdraw with non-deposit token should fail
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.UnsupportedToken.selector);
-        depositTimelock.withdraw(context, users.lender1, USDC, withdrawAmount);
+        depositTimelock.withdraw(users.lender1, context, USDC, withdrawAmount);
         vm.stopPrank();
     }
 
@@ -182,7 +182,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
 
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
-        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
+        depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
@@ -192,7 +192,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
 
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidBytes32.selector);
-        depositTimelock.withdraw(bytes32(0), users.lender1, USDAI, withdrawAmount);
+        depositTimelock.withdraw(users.lender1, bytes32(0), USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
@@ -203,7 +203,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
 
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidAddress.selector);
-        depositTimelock.withdraw(context, address(0), USDAI, withdrawAmount);
+        depositTimelock.withdraw(address(0), context, USDAI, withdrawAmount);
         vm.stopPrank();
     }
 
@@ -221,7 +221,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
 
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.InvalidAddress.selector);
-        depositTimelock.withdraw(context, users.lender1, address(0), withdrawAmount);
+        depositTimelock.withdraw(users.lender1, context, address(0), withdrawAmount);
         vm.stopPrank();
     }
 
@@ -244,11 +244,11 @@ contract DepositTimelockWithdrawTest is BaseTest {
         vm.startPrank(target);
 
         // First withdrawal
-        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
+        depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
 
-        // Second withdrawal should fail (deposit no longer exists)
+        // Second withdrawal should fail (deposit deleted after first)
         vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
-        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
+        depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
 
         vm.stopPrank();
     }

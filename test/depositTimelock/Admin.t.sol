@@ -26,7 +26,7 @@ contract DepositTimelockAdminTest is BaseTest {
         /* Withdraw with non-deposit token should fail */
         vm.startPrank(target);
         vm.expectRevert(IDepositTimelock.UnsupportedToken.selector);
-        depositTimelock.withdraw(context, users.lender1, USDC, amount);
+        depositTimelock.withdraw(users.lender1, context, USDC, amount);
         vm.stopPrank();
     }
 

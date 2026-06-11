@@ -126,7 +126,6 @@ contract DepositTimelockCancelTest is BaseTest {
 
         vm.startPrank(users.lender1);
 
-        // This will revert because deposit amount is 0
         vm.expectRevert(IDepositTimelock.InvalidDeposit.selector);
         depositTimelock.cancel(target, context);
 
@@ -169,7 +168,7 @@ contract DepositTimelockCancelTest is BaseTest {
 
         // Withdraw (simulating loan borrow)
         vm.startPrank(target);
-        depositTimelock.withdraw(context, users.lender1, USDAI, withdrawAmount);
+        depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
         vm.stopPrank();
 
         // Try to cancel after withdrawal (should fail because deposit no longer exists)
