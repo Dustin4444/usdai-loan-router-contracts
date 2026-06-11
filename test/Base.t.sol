@@ -15,6 +15,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {LoanRouter} from "src/LoanRouter.sol";
 import {DepositTimelock} from "src/DepositTimelock.sol";
 import {EscrowTimelock} from "src/EscrowTimelock.sol";
+import {CollateralTimelock} from "src/CollateralTimelock.sol";
 import {BundleCollateralWrapper} from "src/collateralWrappers/BundleCollateralWrapper.sol";
 import {AmortizedInterestRateModel} from "src/rates/AmortizedInterestRateModel.sol";
 import {LoanTermsLogic} from "src/LoanTermsLogic.sol";
@@ -104,6 +105,10 @@ abstract contract BaseTest is Test {
     EscrowTimelock internal escrowTimelock;
     TransparentUpgradeableProxy internal escrowTimelockProxy;
 
+    CollateralTimelock internal collateralTimelockImpl;
+    CollateralTimelock internal collateralTimelock;
+    TransparentUpgradeableProxy internal collateralTimelockProxy;
+
     AmortizedInterestRateModel internal interestRateModel;
 
     TestERC721 internal testNFT;
@@ -149,8 +154,7 @@ abstract contract BaseTest is Test {
         // Deploy contracts
         deployDepositTimelock();
         deployEscrowTimelock();
-        deployLoanRouter();
-        deployInterestRateModel();
+        deployCollateralTimelock();
 
         // Setup
         setupCollateralWrapper();
@@ -198,6 +202,29 @@ abstract contract BaseTest is Test {
 
         // Create interface
         escrowTimelock = EscrowTimelock(address(escrowTimelockProxy));
+
+        vm.stopPrank();
+    }
+
+    function deployCollateralTimelock() internal {
+        vm.startPrank(users.deployer);
+
+        // Deploy implementation
+        collateralTimelockImpl = new CollateralTimelock();
+
+        // Deploy proxy
+        collateralTimelockProxy = new TransparentUpgradeableProxy(
+            address(collateralTimelockImpl),
+            address(users.admin),
+            abi.encodeWithSignature("initialize(address)", users.deployer)
+        );
+
+        // Create interface
+        collateralTimelock = CollateralTimelock(address(collateralTimelockProxy));
+
+        // Grant ERC721 depositor role to depositors
+        AccessControl(address(collateralTimelock)).grantRole(keccak256("DEPOSITOR_ROLE"), users.borrower);
+        AccessControl(address(collateralTimelock)).grantRole(keccak256("DEPOSITOR_ROLE"), users.lender1);
 
         vm.stopPrank();
     }

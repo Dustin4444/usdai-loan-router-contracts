@@ -25,6 +25,7 @@ contract Deployer is BaseScript {
         address loanRouter;
         address depositTimelock;
         address escrowTimelock;
+        address collateralTimelock;
         address simpleInterestRateModel;
         address amortizedInterestRateModel;
         address bundleCollateralWrapper;
@@ -106,6 +107,7 @@ contract Deployer is BaseScript {
         json = stdJson.serialize("", "loanRouter", _deployment.loanRouter);
         json = stdJson.serialize("", "depositTimelock", _deployment.depositTimelock);
         json = stdJson.serialize("", "escrowTimelock", _deployment.escrowTimelock);
+        json = stdJson.serialize("", "collateralTimelock", _deployment.collateralTimelock);
         json = stdJson.serialize("", "simpleInterestRateModel", _deployment.simpleInterestRateModel);
         json = stdJson.serialize("", "amortizedInterestRateModel", _deployment.amortizedInterestRateModel);
         json = stdJson.serialize("", "bundleCollateralWrapper", _deployment.bundleCollateralWrapper);
@@ -142,6 +144,13 @@ contract Deployer is BaseScript {
             _deployment.escrowTimelock = instance;
         } catch {
             console.log("Could not parse escrowTimelock");
+        }
+
+        /* Deserialize collateralTimelock */
+        try vm.parseJsonAddress(json, ".collateralTimelock") returns (address instance) {
+            _deployment.collateralTimelock = instance;
+        } catch {
+            console.log("Could not parse collateralTimelock");
         }
 
         /* Deserialize simpleInterestRateModel */
