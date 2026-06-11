@@ -26,7 +26,7 @@ contract DepositTimelock is
     using SafeERC20 for IERC20;
 
     /*------------------------------------------------------------------------*/
-    /* Constant */
+    /* Constants */
     /*------------------------------------------------------------------------*/
 
     /**
@@ -229,25 +229,22 @@ contract DepositTimelock is
         external
         onlyRole(DEPOSITOR_ROLE)
         nonZeroAddress(target)
+        nonZeroBytes32(context)
         nonZeroAddress(token)
         nonZeroUint(amount)
         nonZeroUint(expiration)
-        nonZeroBytes32(context)
         nonReentrant
     {
         /* Compute token ID */
         uint256 tokenId = _depositTokenId(msg.sender, target, context);
 
-        /* Validate deposit is not already set */
-        if (_getDepositsStorage().deposits[tokenId].amount != 0) revert InvalidDeposit();
+        /* Validate deposit does not exist */
+        if (_getDepositsStorage().deposits[tokenId].depositor != address(0)) revert InvalidDeposit();
 
         /* Validate expiration is in the future */
         if (block.timestamp >= expiration) revert InvalidTimestamp();
 
-        /* Transfer token from sender to this contract */
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-
-        /* Set deposit */
+        /* Create deposit */
         _getDepositsStorage().deposits[tokenId] = Deposit({
             depositor: msg.sender,
             target: target,
@@ -259,6 +256,9 @@ contract DepositTimelock is
 
         /* Mint receipt token */
         _safeMint(msg.sender, tokenId);
+
+        /* Transfer token from sender to this contract */
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
         /* Emit deposit event */
         emit Deposited(msg.sender, target, context, token, amount, expiration);
@@ -277,11 +277,11 @@ contract DepositTimelock is
         /* Get deposit */
         Deposit memory deposit_ = _getDepositsStorage().deposits[tokenId];
 
+        /* Validate deposit exists */
+        if (deposit_.depositor == address(0)) revert InvalidDeposit();
+
         /* Validate timelock has expired */
         if (block.timestamp <= deposit_.expiration) revert InvalidTimestamp();
-
-        /* Validate deposit */
-        if (deposit_.amount == 0) revert InvalidDeposit();
 
         /* Delete deposit */
         delete _getDepositsStorage().deposits[tokenId];
@@ -318,14 +318,17 @@ contract DepositTimelock is
         /* Get deposit */
         Deposit memory deposit_ = _getDepositsStorage().deposits[tokenId];
 
-        /* Validate timelock hasn't expired */
-        if (block.timestamp > deposit_.expiration) revert InvalidTimestamp();
+        /* Validate deposit exists */
+        if (deposit_.depositor == address(0)) revert InvalidDeposit();
 
-        /* Validate deposit amount */
-        if (deposit_.amount == 0) revert InvalidAmount();
+        /* Validate timelock hasn't expired */
+        if (block.timestamp >= deposit_.expiration) revert InvalidTimestamp();
 
         /* Validate withdraw token matches deposit token */
         if (token != deposit_.token) revert UnsupportedToken();
+
+        /* Validate withdraw amount */
+        if (amount > deposit_.amount) revert InvalidAmount();
 
         /* Delete deposit */
         delete _getDepositsStorage().deposits[tokenId];

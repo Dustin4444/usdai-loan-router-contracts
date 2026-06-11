@@ -146,12 +146,11 @@ contract DepositTimelockWithdrawTest is BaseTest {
         depositTimelock.deposit(target, context, USDAI, depositAmount, expiration);
         vm.stopPrank();
 
-        // The contract has no separate caller-vs-target access check: msg.sender feeds the depositTokenId
-        // derivation, so a non-target caller looks up a different (nonexistent) deposit whose default
-        // expiration is 0. The first revert encountered is therefore InvalidTimestamp (block.timestamp > 0),
-        // not a dedicated access-control error.
+        // DepositTimelock has no dedicated access-control branch for non-target callers: msg.sender feeds the
+        // depositTokenId derivation, so a non-target caller resolves to a different (empty) deposit and hits
+        // InvalidDeposit on the existence check.
         vm.startPrank(users.lender2);
-        vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
+        vm.expectRevert(IDepositTimelock.InvalidDeposit.selector);
         depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
         vm.stopPrank();
     }
@@ -181,7 +180,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
         uint256 withdrawAmount = 100_000 * 1e18;
 
         vm.startPrank(target);
-        vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
+        vm.expectRevert(IDepositTimelock.InvalidDeposit.selector);
         depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
         vm.stopPrank();
     }
@@ -247,7 +246,7 @@ contract DepositTimelockWithdrawTest is BaseTest {
         depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
 
         // Second withdrawal should fail (deposit deleted after first)
-        vm.expectRevert(IDepositTimelock.InvalidTimestamp.selector);
+        vm.expectRevert(IDepositTimelock.InvalidDeposit.selector);
         depositTimelock.withdraw(users.lender1, context, USDAI, withdrawAmount);
 
         vm.stopPrank();
