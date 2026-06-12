@@ -16,11 +16,6 @@ interface IDepositTimelock {
     error InvalidAmount();
 
     /**
-     * @notice Invalid deposit
-     */
-    error InvalidDeposit();
-
-    /**
      * @notice Invalid address
      */
     error InvalidAddress();
@@ -29,6 +24,11 @@ interface IDepositTimelock {
      * @notice Invalid bytes32
      */
     error InvalidBytes32();
+
+    /**
+     * @notice Invalid deposit
+     */
+    error InvalidDeposit();
 
     /**
      * @notice Invalid timestamp
