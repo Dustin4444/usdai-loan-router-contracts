@@ -293,7 +293,7 @@ contract DepositTimelock is
         IERC20(deposit_.token).safeTransfer(msg.sender, deposit_.amount);
 
         /* Emit cancel event */
-        emit Canceled(msg.sender, target, context, deposit_.amount);
+        emit Canceled(msg.sender, target, context, deposit_.token, deposit_.amount);
 
         /* Return deposit amount */
         return deposit_.amount;

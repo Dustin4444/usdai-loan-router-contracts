@@ -27,7 +27,7 @@ contract DepositTimelockCancelTest is BaseTest {
 
         // Cancel
         vm.expectEmit(true, true, true, true);
-        emit IDepositTimelock.Canceled(users.lender1, target, context, amount);
+        emit IDepositTimelock.Canceled(users.lender1, target, context, USDAI, amount);
         depositTimelock.cancel(target, context);
 
         vm.stopPrank();

@@ -67,9 +67,12 @@ interface IDepositTimelock {
      * @param depositor Depositor address
      * @param target Target contract
      * @param context Context identifier
+     * @param token Token address
      * @param amount Amount returned
      */
-    event Canceled(address indexed depositor, address indexed target, bytes32 indexed context, uint256 amount);
+    event Canceled(
+        address indexed depositor, address indexed target, bytes32 indexed context, address token, uint256 amount
+    );
 
     /**
      * @notice Emitted when a deposit is withdrawn
