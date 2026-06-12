@@ -6,10 +6,6 @@ pragma solidity ^0.8.0;
  * @author USD.AI Foundation
  */
 interface IDepositTimelockHooks {
-    /*------------------------------------------------------------------------*/
-    /* Public API */
-    /*------------------------------------------------------------------------*/
-
     /**
      * @notice Called when deposit is withdrawn
      * @param target Target address
