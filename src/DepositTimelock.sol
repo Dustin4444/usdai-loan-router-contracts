@@ -54,10 +54,10 @@ contract DepositTimelock is
      * @notice Deposit
      * @param depositor Depositor address
      * @param target Target address
-     * @param context Context
-     * @param token Token
+     * @param context Context identifier
+     * @param token Token address
      * @param amount Amount
-     * @param expiration Expiration
+     * @param expiration Expiration timestamp
      */
     struct Deposit {
         address depositor;
@@ -165,7 +165,7 @@ contract DepositTimelock is
      * @notice Helper function to compute deposit token ID
      * @param depositor Depositor address
      * @param target Target address
-     * @param context Context
+     * @param context Context identifier
      * @return Deposit token ID
      */
     function _depositTokenId(

@@ -47,7 +47,7 @@ interface IDepositTimelock {
     /**
      * @notice Emitted when a deposit is made
      * @param depositor Depositor address
-     * @param target Target contract that can withdraw
+     * @param target Target address
      * @param context Context identifier
      * @param token Token address
      * @param amount Amount deposited
@@ -65,7 +65,7 @@ interface IDepositTimelock {
     /**
      * @notice Emitted when a deposit is canceled
      * @param depositor Depositor address
-     * @param target Target contract
+     * @param target Target address
      * @param context Context identifier
      * @param token Token address
      * @param amount Amount returned
@@ -82,7 +82,7 @@ interface IDepositTimelock {
      * @param token Token address
      * @param depositAmount Deposit amount
      * @param withdrawAmount Withdraw amount
-     * @param refundAmount Deposit amount refunded
+     * @param refundAmount Refund amount
      */
     event Withdrawn(
         address indexed depositor,
@@ -102,7 +102,7 @@ interface IDepositTimelock {
      * @notice Get deposit token ID
      * @param depositor Depositor address
      * @param target Target address
-     * @param context Context
+     * @param context Context identifier
      * @return Deposit token ID
      */
     function depositTokenId(
@@ -115,7 +115,7 @@ interface IDepositTimelock {
      * @notice Get deposit information
      * @param tokenId Token ID
      * @return depositor Depositor address
-     * @return target Target contract address
+     * @return target Target address
      * @return context Context identifier
      * @return token Token address
      * @return amount Amount deposited
@@ -134,7 +134,7 @@ interface IDepositTimelock {
 
     /**
      * @notice Deposit tokens with timelock
-     * @param target Target contract that can withdraw
+     * @param target Target address
      * @param context Context identifier
      * @param token Token address
      * @param amount Amount to deposit
@@ -150,7 +150,7 @@ interface IDepositTimelock {
 
     /**
      * @notice Cancel deposit after expiration
-     * @param target Target contract
+     * @param target Target address
      * @param context Context identifier
      * @return Amount returned
      */

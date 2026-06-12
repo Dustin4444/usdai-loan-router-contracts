@@ -12,7 +12,7 @@ interface IDepositTimelockHooks {
 
     /**
      * @notice Called when deposit is withdrawn
-     * @param target Target contract
+     * @param target Target address
      * @param context Context identifier
      * @param token Token address
      * @param depositAmount Deposit amount
