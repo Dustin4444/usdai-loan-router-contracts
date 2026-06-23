@@ -12,6 +12,7 @@ import {CollateralTimelock} from "src/CollateralTimelock.sol";
 import {LoanRouterV2} from "src/LoanRouterV2.sol";
 import {ReserveAccount} from "src/ReserveAccount.sol";
 import {SimpleInterestRateModel} from "src/rates/SimpleInterestRateModel.sol";
+import {AmortizedInterestRateModel} from "src/rates/AmortizedInterestRateModel.sol";
 import {AbsoluteFeeModel} from "src/fees/AbsoluteFeeModel.sol";
 import {RatioFeeModel} from "src/fees/RatioFeeModel.sol";
 
@@ -57,7 +58,12 @@ contract DeployProductionEnvironment is Deployer {
         address admin,
         address feeRecipient,
         address escrowAdmin
-    ) public broadcast useDeployment returns (address, address, address, address, address, address, address, address) {
+    )
+        public
+        broadcast
+        useDeployment
+        returns (address, address, address, address, address, address, address, address, address)
+    {
         // Deploy CollateralTimelock implementation
         CollateralTimelock collateralTimelockImpl = new CollateralTimelock();
         console.log("CollateralTimelock implementation", address(collateralTimelockImpl));
@@ -73,6 +79,10 @@ contract DeployProductionEnvironment is Deployer {
         // Deploy SimpleInterestRateModel
         SimpleInterestRateModel simpleInterestRateModel = new SimpleInterestRateModel();
         console.log("SimpleInterestRateModel", address(simpleInterestRateModel));
+
+        // Deploy AmortizedInterestRateModel
+        AmortizedInterestRateModel amortizedInterestRateModel = new AmortizedInterestRateModel();
+        console.log("AmortizedInterestRateModel", address(amortizedInterestRateModel));
 
         // Deploy AbsoluteFeeModel
         AbsoluteFeeModel absoluteFeeModel = new AbsoluteFeeModel();
@@ -208,6 +218,7 @@ contract DeployProductionEnvironment is Deployer {
         _deployment.escrowTimelock = ESCROW_TIMELOCK_ADDRESS;
         _deployment.loanRouterV2 = LOAN_ROUTER_V2_ADDRESS;
         _deployment.simpleInterestRateModel = address(simpleInterestRateModel);
+        _deployment.amortizedInterestRateModel = address(amortizedInterestRateModel);
         _deployment.absoluteFeeModel = address(absoluteFeeModel);
         _deployment.ratioFeeModel = address(ratioFeeModel);
         _deployment.reserveAccountBeacon = RESERVE_ACCOUNT_BEACON_ADDRESS;
@@ -218,6 +229,7 @@ contract DeployProductionEnvironment is Deployer {
             ESCROW_TIMELOCK_ADDRESS,
             LOAN_ROUTER_V2_ADDRESS,
             address(simpleInterestRateModel),
+            address(amortizedInterestRateModel),
             address(absoluteFeeModel),
             address(ratioFeeModel),
             RESERVE_ACCOUNT_BEACON_ADDRESS
