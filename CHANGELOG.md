@@ -1,3 +1,31 @@
+* LoanRouterV2 v1.0 - 06/25/2026
+    * Initial release.
+
+* SimpleInterestRateModel v2.0 - 06/25/2026
+    * Initial release.
+
+* AmortizedInterestRateModel v2.0 - 06/25/2026
+    * Initial release.
+
+* PercentageFeeModel v1.0 - 06/25/2026
+    * Initial release.
+
+* AbsoluteFeeModel v1.0 - 06/25/2026
+    * Initial release.
+
+* ReserveAccount v1.0 - 06/25/2026
+    * Initial release.
+
+* CollateralTimelock v1.0 - 06/25/2026
+    * Initial release.
+
+* EscrowTimelock v1.0 - 06/25/2026
+    * Initial release.
+
+* DepositTimelock v1.2 - 06/25/2026
+    * Remove swap adapters.
+    * Reorder `depositor` and `context` parameters for `withdraw()` API.
+
 * LoanRouter v1.1 - 03/03/2026
     * Fix elapsed tranche interest calculation in collateral liquidation.
     * Fix return data sanitization in `_supportsHooksInterface()` to prevent
