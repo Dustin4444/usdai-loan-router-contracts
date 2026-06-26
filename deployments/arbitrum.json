@@ -1,8 +1,11 @@
 {
-  "amortizedInterestRateModel": "0xe01520FD4F249efa4d905F60b6b54E2ade6fA18D",
-  "bundleCollateralWrapper": "0x80E3146FB2328fE1b79f92F5a3a6bF35515AEe37",
-  "depositTimelock": "0x0D710CC05f34d2eaD9fbA3c78d53d76a0623c9F8",
-  "externalCollateralLiquidator": "0x95f9A3dd08f557859db73a1462fcCaD280Be4b21",
-  "loanRouter": "0x0C2ED170F2bB1DF1a44292Ad621B577b3C9597D1",
-  "simpleInterestRateModel": "0xEA0eae46bC15cd975F0545ba35584D96c7b35A1e"
+  "absoluteFeeModel": "0x9372F83b48d36D53b224Ce0C254aDCA0318c190D",
+  "amortizedInterestRateModel": "0x23ea0944271c0A69d9816490218af1e13967bd87",
+  "collateralTimelock": "0x1C710CC0f5562752E88f5A5cC36fA72E73DBEa45",
+  "depositTimelock": "0x1D710CC0c435bA6e27ABC82A51DFBcA17C41FE3C",
+  "escrowTimelock": "0x1E710CC0b64E1D7572d35E43AD261587789B6438",
+  "loanRouterV2": "0x1C2ED170de32846316784c4fd58A5e3C7563E12f",
+  "ratioFeeModel": "0xa10B9DB24220266f282dfFAC538937852FD8E1d3",
+  "reserveAccountBeacon": "0x12E5E200a56A24a1CA2aF175F66574c623ADe6B1",
+  "simpleInterestRateModel": "0xF97892DCcE1318480BAF8765B4a8eA7b6048c1e1"
 }
