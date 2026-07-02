@@ -31,6 +31,7 @@ contract Deployer is BaseScript {
         address absoluteFeeModel;
         address ratioFeeModel;
         address reserveAccountBeacon;
+        address reserveAccountFactory;
     }
 
     /*--------------------------------------------------------------------------*/
@@ -114,6 +115,7 @@ contract Deployer is BaseScript {
         json = stdJson.serialize("", "absoluteFeeModel", _deployment.absoluteFeeModel);
         json = stdJson.serialize("", "ratioFeeModel", _deployment.ratioFeeModel);
         json = stdJson.serialize("", "reserveAccountBeacon", _deployment.reserveAccountBeacon);
+        json = stdJson.serialize("", "reserveAccountFactory", _deployment.reserveAccountFactory);
 
         console.log("Writing json to file: %s\n", json);
         vm.writeJson(json, _getJsonFilePath());
@@ -188,6 +190,13 @@ contract Deployer is BaseScript {
             _deployment.reserveAccountBeacon = instance;
         } catch {
             console.log("Could not parse reserveAccountBeacon");
+        }
+
+        /* Deserialize reserveAccountFactory */
+        try vm.parseJsonAddress(json, ".reserveAccountFactory") returns (address instance) {
+            _deployment.reserveAccountFactory = instance;
+        } catch {
+            console.log("Could not parse reserveAccountFactory");
         }
     }
 }
