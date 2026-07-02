@@ -12,7 +12,6 @@ import {LoanFixtures} from "../helpers/LoanFixtures.sol";
 import {LenderHookRecorder} from "../mocks/LenderHookRecorder.sol";
 import {ERC1271SignerMock} from "../mocks/ERC1271SignerMock.sol";
 
-import {ILoanRouterV1} from "src/interfaces/ILoanRouterV1.sol";
 import {ILoanRouterV2} from "src/interfaces/ILoanRouterV2.sol";
 import {ILoanRouterV2Hooks} from "src/interfaces/ILoanRouterV2Hooks.sol";
 import {RatioFeeModel} from "src/fees/RatioFeeModel.sol";
@@ -807,14 +806,6 @@ contract OriginRevertingLender is IERC165, IERC721Receiver, ILoanRouterV2Hooks {
         uint8,
         uint256,
         uint256
-    ) external pure {}
-
-    function onLoanMigrated(
-        ILoanRouterV1.LoanTerms calldata,
-        bytes32,
-        ILoanRouterV2.LoanTermsV2 calldata,
-        bytes32,
-        uint64
     ) external pure {}
 
     function supportsInterface(

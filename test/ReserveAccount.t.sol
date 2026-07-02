@@ -51,11 +51,7 @@ contract ReserveAccountTest is BaseTest {
         /* Deploy LoanRouterV2 wired to the existing timelocks */
         vm.startPrank(users.deployer);
         LoanRouterV2 routerImpl = new LoanRouterV2(
-            users.feeRecipient,
-            address(collateralTimelock),
-            address(depositTimelock),
-            address(escrowTimelock),
-            loanRouter
+            users.feeRecipient, address(collateralTimelock), address(depositTimelock), address(escrowTimelock)
         );
         ERC1967Proxy routerProxy = new ERC1967Proxy(
             address(routerImpl), abi.encodeWithSelector(LoanRouterV2.initialize.selector, users.admin)

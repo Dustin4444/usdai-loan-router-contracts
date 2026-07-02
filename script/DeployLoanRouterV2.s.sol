@@ -12,8 +12,7 @@ contract DeployLoanRouterV2 is Deployer {
     function run(
         address deployer,
         address admin,
-        address feeRecipient,
-        address loanRouterV1
+        address feeRecipient
     ) public broadcast useDeployment returns (address) {
         if (_deployment.collateralTimelock == address(0x0)) revert MissingDependency();
         if (_deployment.depositTimelock == address(0x0)) revert MissingDependency();
@@ -21,11 +20,7 @@ contract DeployLoanRouterV2 is Deployer {
 
         // Deploy LoanRouterV2 implementation
         LoanRouterV2 loanRouterImpl = new LoanRouterV2(
-            feeRecipient,
-            _deployment.collateralTimelock,
-            _deployment.depositTimelock,
-            _deployment.escrowTimelock,
-            loanRouterV1
+            feeRecipient, _deployment.collateralTimelock, _deployment.depositTimelock, _deployment.escrowTimelock
         );
         console.log("LoanRouterV2 implementation", address(loanRouterImpl));
 

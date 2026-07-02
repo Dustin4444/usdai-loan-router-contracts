@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {ILoanRouterV1} from "./ILoanRouterV1.sol";
 import {ILoanRouterV2} from "./ILoanRouterV2.sol";
 
 /**
@@ -81,21 +80,5 @@ interface ILoanRouterV2Hooks {
         uint8 trancheIndex,
         uint256 principal,
         uint256 interest
-    ) external;
-
-    /**
-     * @notice Called when loan is migrated
-     * @param loanTermsV1 Loan terms (V1)
-     * @param loanTermsHashV1 Loan terms hash (V1)
-     * @param loanTermsV2 Loan terms (V2)
-     * @param loanTermsHashV2 Loan terms hash (V2)
-     * @param originationTimestampV2 V2 origination timestamp override
-     */
-    function onLoanMigrated(
-        ILoanRouterV1.LoanTerms calldata loanTermsV1,
-        bytes32 loanTermsHashV1,
-        ILoanRouterV2.LoanTermsV2 calldata loanTermsV2,
-        bytes32 loanTermsHashV2,
-        uint64 originationTimestampV2
     ) external;
 }

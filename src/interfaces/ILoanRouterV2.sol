@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./ILoanRouterV1.sol";
-
 /**
  * @title Loan Router V2 Interface
  * @author USD.AI Foundation
@@ -342,14 +340,6 @@ interface ILoanRouterV2 {
      */
     event ERC20Rescued(address indexed token, address indexed to, uint256 amount);
 
-    /**
-     * @notice Emitted when a V1 loan is migrated to V2
-     * @param loanTermsHashV1 Loan terms hash (V1)
-     * @param loanTermsHashV2 Loan terms hash (V2)
-     * @param loanTerms ABI-encoded loan terms (V2)
-     */
-    event LoanMigrated(bytes32 indexed loanTermsHashV1, bytes32 indexed loanTermsHashV2, bytes loanTerms);
-
     /*------------------------------------------------------------------------*/
     /* Getters */
     /*------------------------------------------------------------------------*/
@@ -558,21 +548,5 @@ interface ILoanRouterV2 {
         address token,
         address to,
         uint256 amount
-    ) external;
-
-    /*------------------------------------------------------------------------*/
-    /* Migration API */
-    /*------------------------------------------------------------------------*/
-
-    /**
-     * @notice Migrate an active V1 loan into V2
-     * @param loanTermsV1 V1 loan terms
-     * @param loanTermsV2 V2 loan terms
-     * @param originationTimestampV2 V2 origination timestamp override, 0 to derive from the last paid V1 deadline
-     */
-    function migrateLoan(
-        ILoanRouterV1.LoanTerms calldata loanTermsV1,
-        LoanTermsV2 calldata loanTermsV2,
-        uint64 originationTimestampV2
     ) external;
 }

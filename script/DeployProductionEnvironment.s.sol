@@ -33,7 +33,6 @@ contract DeployProductionEnvironment is Deployer {
 
     address internal constant USDAI_ADDRESS = address(0x0A1a1A107E45b7Ced86833863f482BC5f4ed82EF);
     address internal constant STAKED_USDAI_ADDRESS = address(0x0B2b2B2076d95dda7817e785989fE353fe955ef9);
-    address internal constant LOAN_ROUTER_V1_ADDRESS = address(0x0C2ED170F2bB1DF1a44292Ad621B577b3C9597D1);
 
     address internal constant COLLATERAL_TIMELOCK_ADDRESS = address(0x1C710CC0f5562752E88f5A5cC36fA72E73DBEa45);
     bytes32 internal constant COLLATERAL_TIMELOCK_SALT =
@@ -94,11 +93,7 @@ contract DeployProductionEnvironment is Deployer {
 
         // Deploy LoanRouterV2 implementation
         LoanRouterV2 loanRouterImpl = new LoanRouterV2(
-            feeRecipient,
-            COLLATERAL_TIMELOCK_ADDRESS,
-            DEPOSIT_TIMELOCK_ADDRESS,
-            ESCROW_TIMELOCK_ADDRESS,
-            LOAN_ROUTER_V1_ADDRESS
+            feeRecipient, COLLATERAL_TIMELOCK_ADDRESS, DEPOSIT_TIMELOCK_ADDRESS, ESCROW_TIMELOCK_ADDRESS
         );
         console.log("LoanRouterV2 implementation", address(loanRouterImpl));
 
