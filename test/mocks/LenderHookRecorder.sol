@@ -13,6 +13,7 @@ contract LenderHookRecorder is ILoanRouterV2Hooks, IERC165, IERC721Receiver {
     bool public onLoanFeePaidCalled;
     bool public onLoanLiquidatedCalled;
     bool public onLiquidationProceedsDepositedCalled;
+    bool public onLoanRefinancedCalled;
 
     uint256 public lastRepaymentLoanBalance;
     uint256 public lastRepaymentPrincipal;
@@ -84,6 +85,15 @@ contract LenderHookRecorder is ILoanRouterV2Hooks, IERC165, IERC721Receiver {
         lastTrancheIndex = trancheIndex;
         lastLiquidationPrincipal = principal;
         lastLiquidationInterest = interest;
+    }
+
+    function onLoanRefinanced(
+        ILoanRouterV2.LoanTermsV2 calldata,
+        ILoanRouterV2.LoanTermsV2 calldata,
+        bytes32,
+        bytes32
+    ) external {
+        onLoanRefinancedCalled = true;
     }
 
     function supportsInterface(

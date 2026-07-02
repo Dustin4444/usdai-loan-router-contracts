@@ -281,10 +281,12 @@ contract LoanRouterV2 is
      * @notice Tokenize lender positions
      * @param loanTerms Loan terms
      * @param loanTermsHash_ Loan terms hash
+     * @param isRefinance Whether the loan is a refinance
      */
     function _tokenizeLenderPositions(
         LoanTermsV2 calldata loanTerms,
-        bytes32 loanTermsHash_
+        bytes32 loanTermsHash_,
+        bool isRefinance
     ) internal {
         /* Transfer tokenized lender positions to lenders */
         for (uint8 i; i < loanTerms.trancheSpecs.length; i++) {
@@ -306,9 +308,12 @@ contract LoanRouterV2 is
             /* Mint tokenized lender position */
             _safeMint(lender, tokenId);
 
-            /* Call onLoanOriginated hook if lender is a contract, and implements ILoanRouterV2Hooks
+            /* Call onLoanOriginated hook if not refinancing and lender is a contract, and implements ILoanRouterV2Hooks
             interface */
-            if (lender.code.length != 0 && IERC165(lender).supportsInterface(type(ILoanRouterV2Hooks).interfaceId)) {
+            if (
+                !isRefinance && lender.code.length != 0
+                    && IERC165(lender).supportsInterface(type(ILoanRouterV2Hooks).interfaceId)
+            ) {
                 ILoanRouterV2Hooks(lender).onLoanOriginated(loanTerms, loanTermsHash_, i);
             }
 
@@ -558,7 +563,7 @@ contract LoanRouterV2 is
             LoanLogicV2.withdrawFunds(loanTerms, loanTermsHash_, lenderDepositInfos, _depositTimelock, _escrowTimelock);
 
         /* Tokenize lender positions and call onLoanOriginated hooks */
-        _tokenizeLenderPositions(loanTerms, loanTermsHash_);
+        _tokenizeLenderPositions(loanTerms, loanTermsHash_, false);
 
         /* Transfer funds to borrower */
         uint256 originationFee;
@@ -808,6 +813,64 @@ contract LoanRouterV2 is
 
         /* Emit liquidation proceeds deposited event */
         emit LiquidationProceedsDeposited(loanTermsHash_, proceeds, _unscale(scaledLiquidationFee, false), surplus);
+    }
+
+    /*------------------------------------------------------------------------*/
+    /* Refinance API */
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * @inheritdoc ILoanRouterV2
+     * @dev Equivalence between relevant fields of old and new loan terms are to be validated by the caller
+     * @dev If refinancing fee is required, the fee must be transferred to this contract before calling this function
+     */
+    function refinance(
+        LoanTermsV2 calldata oldLoanTerms,
+        LoanTermsV2 calldata newLoanTerms
+    ) external onlyRole(ORIGINATOR_ROLE) scaleFactor(oldLoanTerms.currencyToken) nonReentrant {
+        /* Get old loan storage */
+        bytes32 oldLoanTermsHash = LoanLogicV2.hashLoanTerms(abi.encode(oldLoanTerms));
+        LoanState storage oldLoan = _getLoansStorage().loans[oldLoanTermsHash];
+
+        /* Validate loan state */
+        if (oldLoan.status != LoanStatus.Active) revert InvalidLoanState();
+
+        /* Compute new loan terms hash and get new loan storage */
+        bytes32 newLoanTermsHash = LoanLogicV2.hashLoanTerms(abi.encode(newLoanTerms));
+        LoanState storage newLoan = _getLoansStorage().loans[newLoanTermsHash];
+
+        /* Validate new loan state */
+        if (newLoan.status != LoanStatus.Uninitialized) revert InvalidLoanState();
+
+        /* Validate old and new loan terms principal */
+        if (LoanLogicV2.computePrincipal(oldLoanTerms) != LoanLogicV2.computePrincipal(newLoanTerms)) {
+            revert InvalidAmount();
+        }
+
+        /* Validate new loan terms */
+        LoanLogicV2.validateLoanTerms(newLoanTerms);
+
+        /* Update old loan status */
+        oldLoan.status = LoanStatus.Repaid;
+
+        /* Burn old lender NFTs and clear reverse lookups */
+        _burnLenderPositions(oldLoanTerms, oldLoanTermsHash);
+
+        /* Initialize new loan state */
+        newLoan.status = LoanStatus.Active;
+        newLoan.balance = oldLoan.balance;
+        newLoan.repaymentCount = oldLoan.repaymentCount;
+        newLoan.originationTimestamp = oldLoan.originationTimestamp;
+
+        /* Tokenize lender positions without calling onLoanOriginated hook */
+        _tokenizeLenderPositions(newLoanTerms, newLoanTermsHash, true);
+
+        /* Call onLoanRefinanced hook only for tranche 0 lender */
+        ILoanRouterV2Hooks(newLoanTerms.trancheSpecs[0].lender)
+            .onLoanRefinanced(oldLoanTerms, newLoanTerms, oldLoanTermsHash, newLoanTermsHash);
+
+        /* Emit loan refinanced event */
+        emit LoanRefinanced(oldLoanTermsHash, newLoanTermsHash, abi.encode(newLoanTerms));
     }
 
     /*------------------------------------------------------------------------*/

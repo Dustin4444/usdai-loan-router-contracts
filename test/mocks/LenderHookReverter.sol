@@ -55,6 +55,15 @@ contract LenderHookReverter is ILoanRouterV2Hooks, IERC165, IERC721Receiver {
         revert HookIntentionallyReverted();
     }
 
+    function onLoanRefinanced(
+        ILoanRouterV2.LoanTermsV2 calldata,
+        ILoanRouterV2.LoanTermsV2 calldata,
+        bytes32,
+        bytes32
+    ) external pure {
+        revert HookIntentionallyReverted();
+    }
+
     function supportsInterface(
         bytes4 interfaceId
     ) external pure returns (bool) {

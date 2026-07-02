@@ -267,6 +267,14 @@ interface ILoanRouterV2 {
     );
 
     /**
+     * @notice Emitted when loan is refinanced
+     * @param oldLoanTermsHash Old loan terms hash
+     * @param newLoanTermsHash New loan terms hash
+     * @param newLoanTerms New loan terms
+     */
+    event LoanRefinanced(bytes32 indexed oldLoanTermsHash, bytes32 indexed newLoanTermsHash, bytes newLoanTerms);
+
+    /**
      * @notice Emitted when loan is set to breached
      * @param loanTermsHash Loan terms hash
      */
@@ -518,6 +526,20 @@ interface ILoanRouterV2 {
     function depositLiquidationProceeds(
         LoanTermsV2 calldata loanTerms,
         uint256 proceeds
+    ) external;
+
+    /*------------------------------------------------------------------------*/
+    /* Refinance API */
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * @notice Refinance a loan by replacing its terms with new terms
+     * @param oldLoanTerms Old loan terms
+     * @param newLoanTerms New loan terms
+     */
+    function refinance(
+        LoanTermsV2 calldata oldLoanTerms,
+        LoanTermsV2 calldata newLoanTerms
     ) external;
 
     /*------------------------------------------------------------------------*/

@@ -81,4 +81,18 @@ interface ILoanRouterV2Hooks {
         uint256 principal,
         uint256 interest
     ) external;
+
+    /**
+     * @notice Called when loan is refinanced
+     * @param oldLoanTerms Old loan terms
+     * @param newLoanTerms New loan terms
+     * @param oldLoanTermsHash Old loan terms hash
+     * @param newLoanTermsHash New loan terms hash
+     */
+    function onLoanRefinanced(
+        ILoanRouterV2.LoanTermsV2 calldata oldLoanTerms,
+        ILoanRouterV2.LoanTermsV2 calldata newLoanTerms,
+        bytes32 oldLoanTermsHash,
+        bytes32 newLoanTermsHash
+    ) external;
 }

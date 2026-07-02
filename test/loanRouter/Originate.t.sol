@@ -808,6 +808,13 @@ contract OriginRevertingLender is IERC165, IERC721Receiver, ILoanRouterV2Hooks {
         uint256
     ) external pure {}
 
+    function onLoanRefinanced(
+        ILoanRouterV2.LoanTermsV2 calldata,
+        ILoanRouterV2.LoanTermsV2 calldata,
+        bytes32,
+        bytes32
+    ) external pure {}
+
     function supportsInterface(
         bytes4 interfaceId
     ) external pure returns (bool) {

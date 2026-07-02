@@ -62,6 +62,15 @@ contract LenderHookConsumer is ILoanRouterV2Hooks, IERC165, IERC721Receiver {
         _burn();
     }
 
+    function onLoanRefinanced(
+        ILoanRouterV2.LoanTermsV2 calldata,
+        ILoanRouterV2.LoanTermsV2 calldata,
+        bytes32,
+        bytes32
+    ) external pure {
+        _burn();
+    }
+
     function supportsInterface(
         bytes4 interfaceId
     ) external pure returns (bool) {
