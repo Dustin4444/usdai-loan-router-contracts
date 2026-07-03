@@ -5,7 +5,11 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+
 import {IReserveAccountFactory} from "./interfaces/IReserveAccountFactory.sol";
+import {IReserveAccount} from "./interfaces/IReserveAccount.sol";
 
 import {ReserveAccount} from "./ReserveAccount.sol";
 
@@ -29,6 +33,11 @@ contract ReserveAccountFactory is AccessControlUpgradeable, IReserveAccountFacto
      * @notice Reserve account manager role
      */
     bytes32 public constant RESERVE_ACCOUNT_MANAGER_ROLE = keccak256("RESERVE_ACCOUNT_MANAGER_ROLE");
+
+    /**
+     * @notice Borrower role on a reserve account
+     */
+    bytes32 internal constant BORROWER_ROLE = keccak256("BORROWER_ROLE");
 
     /*------------------------------------------------------------------------*/
     /* Immutable State */
@@ -121,9 +130,37 @@ contract ReserveAccountFactory is AccessControlUpgradeable, IReserveAccountFacto
         _reserveAccounts.add(reserveAccount);
 
         /* Emit ReserveAccountCreated event */
-        emit ReserveAccountCreated(reserveAccount);
+        emit ReserveAccountCreated(reserveAccount, borrower);
 
         return reserveAccount;
+    }
+
+    /**
+     * @inheritdoc IReserveAccountFactory
+     */
+    function register(
+        address reserveAccount,
+        address borrower
+    ) external onlyRole(RESERVE_ACCOUNT_MANAGER_ROLE) {
+        /* Check that the reserve account isn't enumerated already */
+        if (isReserveAccount(reserveAccount)) revert AlreadyRegistered();
+
+        /* Validate reserve account supports IReserveAccount interface */
+        if (
+            reserveAccount.code.length == 0
+                || !IERC165(reserveAccount).supportsInterface(type(IReserveAccount).interfaceId)
+        ) {
+            revert InvalidReserveAccount();
+        }
+
+        /* Verify that the borrower has BORROWER_ROLE role */
+        if (!IAccessControl(reserveAccount).hasRole(BORROWER_ROLE, borrower)) revert InvalidBorrower();
+
+        /* Add to registry */
+        _reserveAccounts.add(reserveAccount);
+
+        /* Emit ReserveAccountCreated event */
+        emit ReserveAccountCreated(reserveAccount, borrower);
     }
 
     /*------------------------------------------------------------------------*/

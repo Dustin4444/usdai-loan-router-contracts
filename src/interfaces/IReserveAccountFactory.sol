@@ -15,6 +15,21 @@ interface IReserveAccountFactory {
      */
     error InvalidAddress();
 
+    /**
+     * @notice Invalid reserve account
+     */
+    error InvalidReserveAccount();
+
+    /**
+     * @notice Invalid borrower
+     */
+    error InvalidBorrower();
+
+    /**
+     * @notice Reserve account already registered
+     */
+    error AlreadyRegistered();
+
     /*------------------------------------------------------------------------*/
     /* Events */
     /*------------------------------------------------------------------------*/
@@ -22,8 +37,9 @@ interface IReserveAccountFactory {
     /**
      * @notice Emitted when a reserve account is created
      * @param reserveAccount Reserve account address
+     * @param borrower Borrower address
      */
-    event ReserveAccountCreated(address indexed reserveAccount);
+    event ReserveAccountCreated(address indexed reserveAccount, address indexed borrower);
 
     /*------------------------------------------------------------------------*/
     /* Primary API */
@@ -41,6 +57,17 @@ interface IReserveAccountFactory {
         address currencyToken,
         uint256 reservesRequired
     ) external returns (address);
+
+    /**
+     * @notice Register existing reserve account
+     * @dev Emits ReserveAccountCreated
+     * @param reserveAccount Reserve account address
+     * @param borrower Borrower address
+     */
+    function register(
+        address reserveAccount,
+        address borrower
+    ) external;
 
     /*------------------------------------------------------------------------*/
     /* Getters */

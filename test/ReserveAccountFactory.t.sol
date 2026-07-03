@@ -5,6 +5,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 
 import {BaseTest} from "./Base.t.sol";
 
@@ -30,6 +31,7 @@ contract ReserveAccountFactoryTest is BaseTest {
     UpgradeableBeacon internal beacon;
     ReserveAccountFactory internal factoryImpl;
     ReserveAccountFactory internal factory;
+    address internal externalReserveAccount;
 
     /*------------------------------------------------------------------------*/
     /* Setup */
@@ -70,6 +72,14 @@ contract ReserveAccountFactoryTest is BaseTest {
 
         vm.prank(users.admin);
         factory.grantRole(managerRole, manager);
+
+        /* Deploy an external reserve account for register tests */
+        vm.prank(users.deployer);
+        externalReserveAccount = address(
+            new BeaconProxy(
+                address(beacon), abi.encodeCall(ReserveAccount.initialize, (users.borrower, USDAI, RESERVES_REQUIRED))
+            )
+        );
     }
 
     /*------------------------------------------------------------------------*/
@@ -127,13 +137,81 @@ contract ReserveAccountFactoryTest is BaseTest {
     }
 
     /*------------------------------------------------------------------------*/
+    /* Register */
+    /*------------------------------------------------------------------------*/
+
+    /* Test: register adds an externally deployed reserve account to the registry */
+    function test_Register() external {
+        address reserveAccountAddress = externalReserveAccount;
+
+        vm.expectEmit(true, true, false, false);
+        emit IReserveAccountFactory.ReserveAccountCreated(reserveAccountAddress, users.borrower);
+
+        vm.prank(manager);
+        factory.register(reserveAccountAddress, users.borrower);
+
+        assertTrue(factory.isReserveAccount(reserveAccountAddress));
+
+        assertEq(factory.getReserveAccountCount(), 1);
+
+        assertEq(factory.getReserveAccountAt(0), reserveAccountAddress);
+    }
+
+    /* Test: register reverts for a non-manager */
+    function test_Register_RevertNonManager() external {
+        address reserveAccountAddress = externalReserveAccount;
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                users.borrower,
+                factory.RESERVE_ACCOUNT_MANAGER_ROLE()
+            )
+        );
+
+        vm.prank(users.borrower);
+        factory.register(reserveAccountAddress, users.borrower);
+    }
+
+    /* Test: register reverts when the address does not support IReserveAccount */
+    function test_Register_RevertInvalidReserveAccount() external {
+        vm.expectRevert(IReserveAccountFactory.InvalidReserveAccount.selector);
+
+        vm.prank(manager);
+        factory.register(makeAddr("stranger"), users.borrower);
+    }
+
+    /* Test: register reverts when the borrower lacks BORROWER_ROLE on the reserve account */
+    function test_Register_RevertInvalidBorrower() external {
+        address reserveAccountAddress = externalReserveAccount;
+
+        vm.expectRevert(IReserveAccountFactory.InvalidBorrower.selector);
+
+        vm.prank(manager);
+        factory.register(reserveAccountAddress, makeAddr("notBorrower"));
+    }
+
+    /* Test: register reverts when the reserve account is already registered */
+    function test_Register_RevertAlreadyRegistered() external {
+        address reserveAccountAddress = externalReserveAccount;
+
+        vm.prank(manager);
+        factory.register(reserveAccountAddress, users.borrower);
+
+        vm.expectRevert(IReserveAccountFactory.AlreadyRegistered.selector);
+
+        vm.prank(manager);
+        factory.register(reserveAccountAddress, users.borrower);
+    }
+
+    /*------------------------------------------------------------------------*/
     /* Create */
     /*------------------------------------------------------------------------*/
 
     /* Test: create deploys and registers a reserve account */
     function test_Create() external {
-        vm.expectEmit(false, false, false, false);
-        emit IReserveAccountFactory.ReserveAccountCreated(address(0));
+        vm.expectEmit(false, true, false, false);
+        emit IReserveAccountFactory.ReserveAccountCreated(address(0), users.borrower);
 
         address reserveAccountAddress = _create();
 
