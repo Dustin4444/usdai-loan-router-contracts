@@ -35,7 +35,7 @@ usage() {
     echo "  deploy-absolute-fee-model"
     echo "  deploy-ratio-fee-model"
     echo "  deploy-reserve-account-beacon <admin>"
-    echo "  deploy-reserve-account <borrower> <currency token> <reserves required>"
+    echo "  deploy-reserve-account <borrower> <currency token> <reserves required> <salt>"
     echo "  deploy-reserve-account-factory <deployer> <admin>"
     echo "  deploy-loan-router-v2 <deployer> <admin> <fee recipient> <loan router v1>"
     echo ""

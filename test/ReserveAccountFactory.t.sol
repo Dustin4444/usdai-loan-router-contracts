@@ -31,6 +31,7 @@ contract ReserveAccountFactoryTest is BaseTest {
     UpgradeableBeacon internal beacon;
     ReserveAccountFactory internal factoryImpl;
     ReserveAccountFactory internal factory;
+    uint256 private _saltNonce;
     address internal externalReserveAccount;
 
     /*------------------------------------------------------------------------*/
@@ -86,9 +87,15 @@ contract ReserveAccountFactoryTest is BaseTest {
     /* Helpers */
     /*------------------------------------------------------------------------*/
 
-    function _create() internal returns (address) {
+    function _newSalt() internal returns (bytes32) {
+        return keccak256(abi.encode(++_saltNonce));
+    }
+
+    function _create(
+        bytes32 salt
+    ) internal returns (address) {
         vm.prank(manager);
-        return factory.create(users.borrower, USDAI, RESERVES_REQUIRED);
+        return factory.create(users.borrower, USDAI, RESERVES_REQUIRED, salt);
     }
 
     /*------------------------------------------------------------------------*/
@@ -125,7 +132,9 @@ contract ReserveAccountFactoryTest is BaseTest {
         new TransparentUpgradeableProxy(
             address(implementation),
             users.deployer,
-            abi.encodeWithSelector(ReserveAccountFactory.initialize.selector, address(0))
+            abi.encodeWithSelector(
+                ReserveAccountFactory.initialize.selector, address(0), new address[](0), new address[](0)
+            )
         );
     }
 
@@ -210,10 +219,12 @@ contract ReserveAccountFactoryTest is BaseTest {
 
     /* Test: create deploys and registers a reserve account */
     function test_Create() external {
+        bytes32 salt = _newSalt();
+
         vm.expectEmit(false, true, false, false);
         emit IReserveAccountFactory.ReserveAccountCreated(address(0), users.borrower);
 
-        address reserveAccountAddress = _create();
+        address reserveAccountAddress = _create(salt);
 
         assertTrue(factory.isReserveAccount(reserveAccountAddress));
 
@@ -230,7 +241,9 @@ contract ReserveAccountFactoryTest is BaseTest {
 
     /* Test: create initializes the reserve account with the admin */
     function test_Create_InitializesReserveAccount() external {
-        address reserveAccountAddress = _create();
+        bytes32 salt = _newSalt();
+
+        address reserveAccountAddress = _create(salt);
 
         ReserveAccount reserveAccount = ReserveAccount(reserveAccountAddress);
 
@@ -247,12 +260,26 @@ contract ReserveAccountFactoryTest is BaseTest {
         assertEq(required, RESERVES_REQUIRED);
     }
 
+    /* Test: predictReserveAccountAddress matches the created address */
+    function test_PredictReserveAccountAddress() external {
+        bytes32 salt = _newSalt();
+
+        address predicted = factory.predictReserveAccountAddress(salt);
+
+        address actual = _create(salt);
+
+        assertEq(predicted, actual);
+    }
+
     /* Test: create tracks multiple reserve accounts */
     function test_Create_MultipleAccounts() external {
-        address first = _create();
+        bytes32 salt1 = _newSalt();
+        bytes32 salt2 = _newSalt();
+
+        address first = _create(salt1);
 
         vm.prank(manager);
-        address second = factory.create(users.lender1, USDAI, RESERVES_REQUIRED);
+        address second = factory.create(users.lender1, USDAI, RESERVES_REQUIRED, salt2);
 
         assertEq(factory.getReserveAccountCount(), 2);
 
@@ -263,13 +290,17 @@ contract ReserveAccountFactoryTest is BaseTest {
 
     /* Test: getReserveAccounts paginates by offset and count */
     function test_GetReserveAccounts_Paginates() external {
-        address first = _create();
+        bytes32 salt1 = _newSalt();
+        bytes32 salt2 = _newSalt();
+        bytes32 salt3 = _newSalt();
+
+        address first = _create(salt1);
 
         vm.prank(manager);
-        address second = factory.create(users.lender1, USDAI, RESERVES_REQUIRED);
+        address second = factory.create(users.lender1, USDAI, RESERVES_REQUIRED, salt2);
 
         vm.prank(manager);
-        address third = factory.create(users.lender2, USDAI, RESERVES_REQUIRED);
+        address third = factory.create(users.lender2, USDAI, RESERVES_REQUIRED, salt3);
 
         /* First page of two */
         address[] memory firstPage = factory.getReserveAccounts(0, 2);
@@ -304,7 +335,7 @@ contract ReserveAccountFactoryTest is BaseTest {
         );
 
         vm.prank(users.borrower);
-        factory.create(users.borrower, USDAI, RESERVES_REQUIRED);
+        factory.create(users.borrower, USDAI, RESERVES_REQUIRED, keccak256("test-loan-id-1"));
     }
 
     /*------------------------------------------------------------------------*/

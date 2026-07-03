@@ -5,6 +5,8 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 
+import {CREATE3} from "solady/src/utils/CREATE3.sol";
+
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
@@ -117,14 +119,17 @@ contract ReserveAccountFactory is AccessControlUpgradeable, IReserveAccountFacto
     function create(
         address borrower,
         address currencyToken,
-        uint256 reservesRequired
+        uint256 reservesRequired,
+        bytes32 salt
     ) external onlyRole(RESERVE_ACCOUNT_MANAGER_ROLE) returns (address) {
-        /* Deploy beacon proxy and initialize */
-        address reserveAccount = address(
-            new BeaconProxy(
-                _beacon, abi.encodeCall(ReserveAccount.initialize, (borrower, currencyToken, reservesRequired))
-            )
+        /* Build BeaconProxy init code with initialize */
+        bytes memory initCode = abi.encodePacked(
+            type(BeaconProxy).creationCode,
+            abi.encode(_beacon, abi.encodeCall(ReserveAccount.initialize, (borrower, currencyToken, reservesRequired)))
         );
+
+        /* Deploy deterministically via CREATE3 */
+        address reserveAccount = CREATE3.deployDeterministic(initCode, salt);
 
         /* Add to registry */
         _reserveAccounts.add(reserveAccount);
@@ -227,6 +232,15 @@ contract ReserveAccountFactory is AccessControlUpgradeable, IReserveAccountFacto
         uint256 index
     ) external view returns (address) {
         return _reserveAccounts.at(index);
+    }
+
+    /**
+     * @inheritdoc IReserveAccountFactory
+     */
+    function predictReserveAccountAddress(
+        bytes32 salt
+    ) external view returns (address) {
+        return CREATE3.predictDeterministicAddress(salt);
     }
 
     /*------------------------------------------------------------------------*/

@@ -47,15 +47,18 @@ interface IReserveAccountFactory {
 
     /**
      * @notice Create a reserve account beacon proxy
+     * @dev Emits ReserveAccountCreated
      * @param borrower Borrower address
      * @param currencyToken Currency token
      * @param reservesRequired Initial reserves required
+     * @param salt Salt for deterministic deployment
      * @return Reserve account address
      */
     function create(
         address borrower,
         address currencyToken,
-        uint256 reservesRequired
+        uint256 reservesRequired,
+        bytes32 salt
     ) external returns (address);
 
     /**
@@ -112,5 +115,14 @@ interface IReserveAccountFactory {
      */
     function getReserveAccountAt(
         uint256 index
+    ) external view returns (address);
+
+    /**
+     * @notice Predict reserve account address for a given salt
+     * @param salt Salt for deterministic deployment
+     * @return Predicted reserve account address
+     */
+    function predictReserveAccountAddress(
+        bytes32 salt
     ) external view returns (address);
 }
