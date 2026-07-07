@@ -339,6 +339,30 @@ contract LoanRouterV2 is
         }
     }
 
+    /**
+     * @notice Close a fully repaid loan by burning lender positions and returning collateral
+     * @param loanTerms Loan terms
+     * @param loanTermsHash_ Loan terms hash
+     * @param loan Loan state
+     */
+    function _closeLoan(
+        LoanTermsV2 calldata loanTerms,
+        bytes32 loanTermsHash_,
+        LoanState storage loan
+    ) private {
+        /* Mark loan repaid */
+        loan.status = LoanStatus.Repaid;
+
+        /* Burn lender NFTs and clear reverse lookups */
+        _burnLenderPositions(loanTerms, loanTermsHash_);
+
+        /* Return collateral to borrower */
+        for (uint256 i; i < loanTerms.collateralTokenIds.length; i++) {
+            IERC721(loanTerms.collateralToken)
+                .safeTransferFrom(address(this), loanTerms.borrower, loanTerms.collateralTokenIds[i]);
+        }
+    }
+
     /*------------------------------------------------------------------------*/
     /* Getters */
     /*------------------------------------------------------------------------*/
@@ -591,35 +615,40 @@ contract LoanRouterV2 is
         /* Validate caller and loan state */
         if (loan.status != LoanStatus.Active) revert InvalidLoanState();
         if (msg.sender != loanTerms.borrower) revert InvalidCaller();
+        if (amount == 0) revert InvalidAmount();
 
-        /* Compute principal */
+        /* Compute unscaled principal */
         uint256 principal = LoanLogicV2.computePrincipal(loanTerms);
+
+        /* Compute scaled amounts */
+        uint256 scaledAmount = _scale(amount);
         uint256 scaledPrincipal = _scale(principal);
 
-        /* Compute scaled amount */
-        uint256 scaledAmount = _scale(amount);
-
-        /* Compute repayment breakdown */
+        /* Compute the payment breakdown, which selects scheduled repayment or standalone prepayment */
         LoanLogicV2.Repayment memory repayment = LoanLogicV2.computeRepayment(
             loanTerms, loan, SCALING_FACTOR_STORAGE_LOCATION.asUint256().tload(), scaledAmount, scaledPrincipal
         );
 
-        /* Validate scaled amount */
+        /* Validate the scaled amount covers the total payment */
         if (scaledAmount < repayment.repayment) revert InvalidAmount();
 
-        /* Transfer total repayment amount from borrower (rounded up against scale truncation) */
+        /* Transfer total payment amount from borrower (rounded up against scale truncation) */
         IERC20(loanTerms.currencyToken).safeTransferFrom(msg.sender, address(this), _unscale(repayment.repayment, true));
 
-        /* Pay repayment fees, plus exit fees if this repayment closes the loan */
-        LoanLogicV2.payFees(
-            FeeKind.Repayment,
-            loanTerms,
-            loan,
-            loanTermsHash_,
-            SCALING_FACTOR_STORAGE_LOCATION.asUint256().tload(),
-            _feeRecipient,
-            scaledPrincipal
-        );
+        /* Pay repayment fees on a scheduled repayment */
+        if (repayment.repaymentFee > 0) {
+            LoanLogicV2.payFees(
+                FeeKind.Repayment,
+                loanTerms,
+                loan,
+                loanTermsHash_,
+                SCALING_FACTOR_STORAGE_LOCATION.asUint256().tload(),
+                _feeRecipient,
+                scaledPrincipal
+            );
+        }
+
+        /* Pay exit fees if this payment closes the loan */
         if (repayment.exitFee > 0) {
             LoanLogicV2.payFees(
                 FeeKind.Exit,
@@ -632,9 +661,9 @@ contract LoanRouterV2 is
             );
         }
 
-        /* Reduce loan balance and advance repayment count */
+        /* Reduce loan balance and advance repayment count on a scheduled repayment */
         loan.balance -= repayment.principalPayment + repayment.prepayment;
-        loan.repaymentCount += 1;
+        if (!repayment.isStandalonePrepayment) loan.repaymentCount += 1;
         bool isFullyRepaid = loan.balance == 0;
 
         /* Compute fee total */
@@ -654,20 +683,8 @@ contract LoanRouterV2 is
             revert InvalidAmount();
         }
 
-        /* If loan is fully repaid */
-        if (isFullyRepaid) {
-            /* Update loan status */
-            loan.status = LoanStatus.Repaid;
-
-            /* Burn lender NFTs and clear reverse lookups */
-            _burnLenderPositions(loanTerms, loanTermsHash_);
-
-            /* Return collateral to borrower */
-            for (uint256 i; i < loanTerms.collateralTokenIds.length; i++) {
-                IERC721(loanTerms.collateralToken)
-                    .safeTransferFrom(address(this), loanTerms.borrower, loanTerms.collateralTokenIds[i]);
-            }
-        }
+        /* If loan is fully repaid, close it out */
+        if (isFullyRepaid) _closeLoan(loanTerms, loanTermsHash_, loan);
 
         /* Emit loan repaid event */
         emit LoanRepaid(

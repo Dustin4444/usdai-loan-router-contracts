@@ -481,9 +481,9 @@ interface ILoanRouterV2 {
     /*------------------------------------------------------------------------*/
 
     /**
-     * @notice Repay loan with optional prepayment
+     * @notice Repay a loan, or prepay principal when the current window is already paid
      * @param loanTerms Loan terms
-     * @param amount Amount to repay
+     * @param amount Amount to pay
      */
     function repay(
         LoanTermsV2 calldata loanTerms,

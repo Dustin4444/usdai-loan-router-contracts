@@ -687,4 +687,422 @@ contract LoanRouterV2RepayTest is RouterFixture {
         (ILoanRouterV2.LoanStatus status,,,) = router.loanState(tokenIds[0]);
         assertEq(uint8(status), uint8(ILoanRouterV2.LoanStatus.Active));
     }
+
+    /*------------------------------------------------------------------------*/
+    /* Test: prepayment-only (ahead of schedule)                              */
+    /*------------------------------------------------------------------------*/
+
+    function _originatePrepayReady()
+        internal
+        returns (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 loanTermsHash_)
+    {
+        /* Originate a default loan */
+        loanTerms = originateDefault();
+
+        /* Read its terms hash */
+        loanTermsHash_ = router.loanTermsHash(loanTerms);
+
+        /* Pay the first installment before the first deadline, leaving the loan ahead of schedule */
+        _repayAtCurrentTimestamp(loanTerms);
+    }
+
+    function _prepay(
+        ILoanRouterV2.LoanTermsV2 memory loanTerms,
+        uint256 amount
+    ) internal {
+        /* Fund the borrower with the exact prepayment plus headroom */
+        deal(loanTerms.currencyToken, users.borrower, amount + 1e20);
+
+        /* Approve and prepay as the borrower */
+        vm.startPrank(users.borrower);
+        IERC20(loanTerms.currencyToken).approve(address(router), amount);
+        router.repay(loanTerms, amount);
+        vm.stopPrank();
+    }
+
+    function test__Repay_PrepaymentOnly_DoesNotAdvanceRepaymentCount() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 hash_) = _originatePrepayReady();
+
+        /* Repayment count sits at one after the scheduled first installment */
+        (, uint16 countBefore,,) = router.loanState(hash_);
+        assertEq(countBefore, 1);
+
+        /* Prepay principal */
+        _prepay(loanTerms, 5_000_000 * 1e18);
+
+        /* Repayment count is unchanged by the prepayment */
+        (, uint16 countAfter,,) = router.loanState(hash_);
+        assertEq(countAfter, 1);
+    }
+
+    function test__Repay_PrepaymentOnly_QuoteReturnsZeroWhenAhead() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms,) = _originatePrepayReady();
+
+        /* Quote reports no scheduled payment while the current window is already repaid */
+        (uint256 p, uint256 i, uint256 f) = router.quote(loanTerms);
+        assertEq(p, 0);
+        assertEq(i, 0);
+        assertEq(f, 0);
+
+        /* Past the paid window's deadline the quote becomes due again */
+        uint64[] memory schedule = _schedule(loanTerms);
+        vm.warp(schedule[0] + 1);
+        (uint256 p2, uint256 i2,) = router.quote(loanTerms);
+        assertGt(p2 + i2, 0);
+    }
+
+    function test__Repay_PrepaymentOnly_ReducesBalanceByExactAmount() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 hash_) = _originatePrepayReady();
+
+        /* Read the balance before prepaying */
+        (,,, uint256 balBefore) = router.loanState(hash_);
+
+        /* Prepay principal */
+        uint256 amount = 5_000_000 * 1e18;
+        _prepay(loanTerms, amount);
+
+        /* Balance dropped by exactly the prepayment */
+        (,,, uint256 balAfter) = router.loanState(hash_);
+        assertEq(balAfter, balBefore - amount);
+    }
+
+    function test__Repay_PrepaymentOnly_ChargesNoInterest() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms,) = _originatePrepayReady();
+
+        /* Fund the borrower with exactly the prepayment amount */
+        uint256 amount = 5_000_000 * 1e18;
+        deal(USDAI, users.borrower, amount);
+
+        /* Prepay principal */
+        vm.startPrank(users.borrower);
+        IERC20(USDAI).approve(address(router), amount);
+        router.repay(loanTerms, amount);
+        vm.stopPrank();
+
+        /* Borrower spent only the prepayment, so no interest was pulled */
+        assertEq(IERC20(USDAI).balanceOf(users.borrower), 0);
+    }
+
+    function test__Repay_PrepaymentOnly_LenderReceivesPrincipalOnly() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms,) = _originatePrepayReady();
+
+        /* Record the lender balance before prepaying */
+        uint256 lenderBefore = IERC20(USDAI).balanceOf(STAKED_USDAI);
+
+        /* Prepay principal */
+        uint256 amount = 5_000_000 * 1e18;
+        _prepay(loanTerms, amount);
+
+        /* Lender received exactly the prepayment principal, no interest */
+        assertEq(IERC20(USDAI).balanceOf(STAKED_USDAI) - lenderBefore, amount);
+    }
+
+    function _originatePrepayReadyWithRepaymentFee()
+        internal
+        returns (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 loanTermsHash_)
+    {
+        /* Configure a per-repayment insurance fee */
+        RouterFixture.LoanConfig memory config = _defaultConfig();
+        config.feeSpecs = new ILoanRouterV2.FeeSpec[](1);
+        config.feeSpecs[0] = ILoanRouterV2.FeeSpec({
+            model: address(ratioFeeModel),
+            recipient: insuranceRecipient,
+            kind: ILoanRouterV2.FeeKind.Repayment,
+            options: abi.encode(
+                RatioFeeModel.Options({mode: RatioFeeModel.Mode.Balance, rate: LoanFixtures.INSURANCE_ANNUAL_RATE / 12})
+            )
+        });
+
+        /* Originate the configured loan */
+        loanTerms = originateConfigured(config);
+
+        /* Read its terms hash */
+        loanTermsHash_ = router.loanTermsHash(loanTerms);
+
+        /* Pay the first installment, which charges the repayment fee once */
+        _repayAtCurrentTimestamp(loanTerms);
+    }
+
+    function test__Repay_PrepaymentOnly_NoRepaymentFeeCharged() public {
+        /* Originate with a repayment fee and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms,) = _originatePrepayReadyWithRepaymentFee();
+
+        /* Record the fee recipient balance after the scheduled first installment */
+        uint256 feeBefore = IERC20(USDAI).balanceOf(insuranceRecipient);
+
+        /* Prepay principal */
+        _prepay(loanTerms, 5_000_000 * 1e18);
+
+        /* No repayment fee is charged on a prepayment */
+        assertEq(IERC20(USDAI).balanceOf(insuranceRecipient), feeBefore);
+    }
+
+    function test__Repay_PrepaymentOnly_FullPrepayClosesLoan() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 hash_) = _originatePrepayReady();
+
+        /* Prepay the entire remaining balance */
+        (,,, uint256 balance) = router.loanState(hash_);
+        _prepay(loanTerms, balance);
+
+        /* Loan is fully repaid */
+        (ILoanRouterV2.LoanStatus status,,, uint256 balAfter) = router.loanState(hash_);
+        assertEq(uint8(status), uint8(ILoanRouterV2.LoanStatus.Repaid));
+        assertEq(balAfter, 0);
+
+        /* Collateral returned to the borrower */
+        assertEq(collateralNft.ownerOf(loanTerms.collateralTokenIds[0]), users.borrower);
+    }
+
+    function test__Repay_PrepaymentOnly_CappedAtRemainingBalance() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 hash_) = _originatePrepayReady();
+
+        /* Attempt to prepay far more than the remaining balance */
+        (,,, uint256 balance) = router.loanState(hash_);
+        uint256 over = balance + 100_000_000 * 1e18;
+        deal(USDAI, users.borrower, over);
+        vm.startPrank(users.borrower);
+        IERC20(USDAI).approve(address(router), over);
+        router.repay(loanTerms, over);
+        vm.stopPrank();
+
+        /* Only the remaining balance was pulled */
+        assertEq(IERC20(USDAI).balanceOf(users.borrower), over - balance);
+
+        /* Loan is fully repaid */
+        (ILoanRouterV2.LoanStatus status,,, uint256 balAfter) = router.loanState(hash_);
+        assertEq(uint8(status), uint8(ILoanRouterV2.LoanStatus.Repaid));
+        assertEq(balAfter, 0);
+    }
+
+    function _originatePrepayReadyWithExitFee(
+        uint256 exitFeeAmount
+    ) internal returns (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 loanTermsHash_) {
+        /* Configure a fixed exit fee */
+        RouterFixture.LoanConfig memory config = _defaultConfig();
+        config.feeSpecs = new ILoanRouterV2.FeeSpec[](1);
+        config.feeSpecs[0] = ILoanRouterV2.FeeSpec({
+            model: address(absoluteFeeModel),
+            recipient: insuranceRecipient,
+            kind: ILoanRouterV2.FeeKind.Exit,
+            options: abi.encode(AbsoluteFeeModel.Options({amount: exitFeeAmount}))
+        });
+
+        /* Originate the configured loan */
+        loanTerms = originateConfigured(config);
+
+        /* Read its terms hash */
+        loanTermsHash_ = router.loanTermsHash(loanTerms);
+
+        /* Pay the first installment, which does not close the loan and charges no exit fee */
+        _repayAtCurrentTimestamp(loanTerms);
+    }
+
+    function test__Repay_PrepaymentOnly_FullPrepayChargesExitFeeOnce() public {
+        /* Originate with an exit fee and get ahead of schedule */
+        uint256 exitFeeAmount = 100_000 * 1e18;
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 hash_) = _originatePrepayReadyWithExitFee(exitFeeAmount);
+
+        /* No exit fee has been charged yet */
+        uint256 feeBefore = IERC20(USDAI).balanceOf(insuranceRecipient);
+
+        /* Prepay the whole balance plus the exit fee it owes */
+        (,,, uint256 balance) = router.loanState(hash_);
+        uint256 needed = balance + exitFeeAmount;
+        deal(USDAI, users.borrower, needed);
+        vm.startPrank(users.borrower);
+        IERC20(USDAI).approve(address(router), needed);
+        router.repay(loanTerms, needed);
+        vm.stopPrank();
+
+        /* Exit fee charged exactly once */
+        assertEq(IERC20(USDAI).balanceOf(insuranceRecipient) - feeBefore, exitFeeAmount);
+
+        /* Borrower paid exactly the balance plus the exit fee */
+        assertEq(IERC20(USDAI).balanceOf(users.borrower), 0);
+    }
+
+    function test__Repay_PrepaymentOnly_RevertWhen_FullPrepayExcludesExitFee() public {
+        /* Originate with an exit fee and get ahead of schedule */
+        uint256 exitFeeAmount = 100_000 * 1e18;
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 hash_) = _originatePrepayReadyWithExitFee(exitFeeAmount);
+
+        /* Fund and approve enough for the balance plus the exit fee */
+        (,,, uint256 balance) = router.loanState(hash_);
+        deal(USDAI, users.borrower, balance + exitFeeAmount);
+        vm.startPrank(users.borrower);
+        IERC20(USDAI).approve(address(router), balance + exitFeeAmount);
+
+        /* A closing prepayment of just the balance omits the exit fee */
+        vm.expectRevert(ILoanRouterV2.InvalidAmount.selector);
+        router.repay(loanTerms, balance);
+
+        /* An amount short of the exit fee also reverts */
+        vm.expectRevert(ILoanRouterV2.InvalidAmount.selector);
+        router.repay(loanTerms, balance + exitFeeAmount - 1);
+        vm.stopPrank();
+    }
+
+    function test__Repay_PrepaymentOnly_RevertWhen_ZeroAmount() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms,) = _originatePrepayReady();
+
+        /* A zero prepayment reverts */
+        vm.prank(users.borrower);
+        vm.expectRevert(ILoanRouterV2.InvalidAmount.selector);
+        router.repay(loanTerms, 0);
+    }
+
+    function test__Repay_PrepaymentOnly_ReducesSubsequentWindowInterest() public {
+        /* Loan A stays on schedule with no prepayment */
+        (ILoanRouterV2.LoanTermsV2 memory loanA,) = _originatePrepayReady();
+
+        /* Loan B prepays a chunk of principal */
+        (ILoanRouterV2.LoanTermsV2 memory loanB,) = _originatePrepayReady();
+        _prepay(loanB, 10_000_000 * 1e18);
+
+        /* Quote the next window interest for loan A */
+        uint64[] memory schedA = _schedule(loanA);
+        vm.warp(schedA[1]);
+        (, uint256 interestA,) = router.quote(loanA);
+
+        /* Quote the next window interest for loan B */
+        uint64[] memory schedB = _schedule(loanB);
+        vm.warp(schedB[1]);
+        (, uint256 interestB,) = router.quote(loanB);
+
+        /* Prepaying principal lowers the next window's interest */
+        assertLt(interestB, interestA);
+    }
+
+    function _originatePrepayReadyTwoTranches()
+        internal
+        returns (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 loanTermsHash_)
+    {
+        /* Configure a two-tranche loan paid to the external lenders */
+        RouterFixture.LoanConfig memory config = _defaultConfig();
+        config.twoTranches = true;
+        config.useEscrowTimelock = false;
+
+        /* Originate the configured loan */
+        loanTerms = originateConfigured(config);
+
+        /* Read its terms hash */
+        loanTermsHash_ = router.loanTermsHash(loanTerms);
+
+        /* Pay the first installment, leaving the loan ahead of schedule */
+        _repayAtCurrentTimestamp(loanTerms);
+    }
+
+    function test__Repay_PrepaymentOnly_MultiTranche_SplitProRata() public {
+        /* Originate a two-tranche loan and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms,) = _originatePrepayReadyTwoTranches();
+
+        /* Record lender balances before prepaying */
+        uint256 lender1Before = IERC20(USDAI).balanceOf(users.lender1);
+        uint256 lender2Before = IERC20(USDAI).balanceOf(users.lender2);
+
+        /* Prepay principal */
+        uint256 amount = 10_000_000 * 1e18;
+        _prepay(loanTerms, amount);
+
+        /* Compute lender gains */
+        uint256 lender1Gain = IERC20(USDAI).balanceOf(users.lender1) - lender1Before;
+        uint256 lender2Gain = IERC20(USDAI).balanceOf(users.lender2) - lender2Before;
+
+        /* Prepayment split fifty-fifty across the tranches with no interest */
+        assertEq(lender1Gain + lender2Gain, amount);
+        assertEq(lender1Gain, lender2Gain);
+    }
+
+    function test__Repay_PrepaymentOnly_ThenScheduledRepaymentResumes() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 hash_) = _originatePrepayReady();
+
+        /* Prepay principal */
+        _prepay(loanTerms, 5_000_000 * 1e18);
+
+        /* Prepayment left the repayment count untouched */
+        (, uint16 countAfterPrepay,, uint256 balAfterPrepay) = router.loanState(hash_);
+        assertEq(countAfterPrepay, 1);
+
+        /* Move past the first deadline into the next window */
+        uint64[] memory schedule = _schedule(loanTerms);
+        vm.warp(schedule[1]);
+
+        /* Interest is due again on the reduced balance */
+        (, uint256 interestDue,) = router.quote(loanTerms);
+        assertGt(interestDue, 0);
+
+        /* A payment now is a scheduled repayment */
+        _repayAtCurrentTimestamp(loanTerms);
+
+        /* Repayment count advanced and the balance kept shrinking */
+        (, uint16 countAfter,, uint256 balAfter) = router.loanState(hash_);
+        assertEq(countAfter, 2);
+        assertLt(balAfter, balAfterPrepay);
+    }
+
+    function test__Repay_PrepaymentOnly_EmitsLoanRepaid_PrincipalAndInterestZero() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 hash_) = _originatePrepayReady();
+
+        /* Fund and approve the prepayment */
+        uint256 amount = 5_000_000 * 1e18;
+        deal(USDAI, users.borrower, amount + 1e20);
+        vm.startPrank(users.borrower);
+        IERC20(USDAI).approve(address(router), amount);
+
+        /* Record logs across the prepayment */
+        vm.recordLogs();
+        router.repay(loanTerms, amount);
+        vm.stopPrank();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        /* Find the LoanRepaid event for this loan */
+        bytes32 topic = keccak256("LoanRepaid(bytes32,address,uint256,uint256,uint256,uint256,bool)");
+        bool found;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics.length > 1 && logs[i].topics[0] == topic && logs[i].topics[1] == hash_) {
+                /* Decode principal, interest, prepayment, fee, isRepaid */
+                (uint256 principal, uint256 interest, uint256 prepayment,, bool isRepaid) =
+                    abi.decode(logs[i].data, (uint256, uint256, uint256, uint256, bool));
+
+                /* Prepayment reports zero principal and interest, and does not close the loan */
+                assertEq(principal, 0);
+                assertEq(interest, 0);
+                assertEq(prepayment, amount);
+                assertFalse(isRepaid);
+                found = true;
+                break;
+            }
+        }
+        assertTrue(found);
+    }
+
+    function test__Repay_PrepaymentOnly_AtExactPaidWindowDeadline_IsPrepayment() public {
+        /* Originate and get ahead of schedule */
+        (ILoanRouterV2.LoanTermsV2 memory loanTerms, bytes32 hash_) = _originatePrepayReady();
+
+        /* Warp exactly to the deadline of the already-paid window */
+        uint64[] memory schedule = _schedule(loanTerms);
+        vm.warp(schedule[0]);
+
+        /* A payment on the exact deadline is still a prepayment */
+        _prepay(loanTerms, 5_000_000 * 1e18);
+        (, uint16 countAtDeadline,,) = router.loanState(hash_);
+        assertEq(countAtDeadline, 1);
+
+        /* One second later the same payment becomes a scheduled repayment */
+        vm.warp(schedule[0] + 1);
+        _repayAtCurrentTimestamp(loanTerms);
+        (, uint16 countAfter,,) = router.loanState(hash_);
+        assertEq(countAfter, 2);
+    }
 }

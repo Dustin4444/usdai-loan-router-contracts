@@ -143,6 +143,7 @@ library LoanLogicV2 {
      * @param repaymentFee Scaled repayment fee total
      * @param exitFee Scaled exit fee total
      * @param repayment Scaled total repayment the borrower must transfer
+     * @param isStandalonePrepayment True if this a standalone prepayment
      */
     struct Repayment {
         uint256 principalPayment;
@@ -154,6 +155,7 @@ library LoanLogicV2 {
         uint256 repaymentFee;
         uint256 exitFee;
         uint256 repayment;
+        bool isStandalonePrepayment;
     }
 
     /*------------------------------------------------------------------------*/
@@ -326,6 +328,11 @@ library LoanLogicV2 {
         uint256 scaledAmount,
         uint256 scaledPrincipal
     ) external view returns (Repayment memory repayment) {
+        /* Treat the payment as a prepayment when the current window is already repaid */
+        if (_isCurrentWindowRepaid(loanTerms, loan, uint64(block.timestamp))) {
+            return _computePrepayment(loanTerms, loan, scaleFactor, scaledAmount, scaledPrincipal);
+        }
+
         /* Calculate repayment due */
         (
             repayment.principalPayment,
@@ -345,23 +352,8 @@ library LoanLogicV2 {
             ? Math.min(loan.balance - repayment.principalPayment, scaledAmount - requiredBase)
             : 0;
 
-        /* Calculate prepayment for each tranche */
-        repayment.tranchePrepayments = new uint256[](loanTerms.trancheSpecs.length);
-        uint256 scaledPrepaymentRemaining = repayment.prepayment;
-        for (uint8 i; i < loanTerms.trancheSpecs.length; i++) {
-            /* Calculate scaled tranche prepayment */
-            uint256 scaledTranchePrepayment = repayment.prepayment != 0
-                ? (i == loanTerms.trancheSpecs.length - 1)
-                    ? scaledPrepaymentRemaining
-                    : Math.mulDiv(repayment.prepayment, loanTerms.trancheSpecs[i].amount, scaledPrincipal / scaleFactor)
-                : 0;
-
-            /* Store scaled tranche prepayment */
-            repayment.tranchePrepayments[i] = scaledTranchePrepayment;
-
-            /* Update remaining scaled prepayment */
-            scaledPrepaymentRemaining -= scaledTranchePrepayment;
-        }
+        /* Split prepayment across tranches */
+        repayment.tranchePrepayments = _splitPrepayment(loanTerms, repayment.prepayment, scaledPrincipal / scaleFactor);
 
         /* Compute exit fees if this repayment closes the loan */
         if (repayment.principalPayment + repayment.prepayment == loan.balance) {
@@ -371,6 +363,98 @@ library LoanLogicV2 {
         /* Compute scaled total repayment amount */
         repayment.repayment = repayment.principalPayment + repayment.interestPayment + repayment.repaymentFee
             + repayment.exitFee + repayment.prepayment;
+    }
+
+    /**
+     * @notice Compute the prepayment breakdown for a standalone principal prepayment
+     * @param loanTerms Loan terms
+     * @param loan Loan state
+     * @param scaleFactor Scale factor
+     * @param scaledAmount Scaled amount paid by the borrower
+     * @param scaledPrincipal Scaled principal
+     * @return repayment Prepayment breakdown
+     */
+    function _computePrepayment(
+        ILoanRouterV2.LoanTermsV2 calldata loanTerms,
+        ILoanRouterV2.LoanState storage loan,
+        uint256 scaleFactor,
+        uint256 scaledAmount,
+        uint256 scaledPrincipal
+    ) internal view returns (Repayment memory repayment) {
+        /* Mark the breakdown as a standalone prepayment */
+        repayment.isStandalonePrepayment = true;
+
+        /* Cap prepayment at the remaining balance */
+        repayment.prepayment = Math.min(loan.balance, scaledAmount);
+
+        /* Allocate empty principal and interest arrays for the lender payout */
+        repayment.tranchePrincipals = new uint256[](loanTerms.trancheSpecs.length);
+        repayment.trancheInterests = new uint256[](loanTerms.trancheSpecs.length);
+
+        /* Split prepayment across tranches */
+        repayment.tranchePrepayments = _splitPrepayment(loanTerms, repayment.prepayment, scaledPrincipal / scaleFactor);
+
+        /* Charge exit fees if this prepayment closes the loan */
+        if (repayment.prepayment == loan.balance) {
+            repayment.exitFee = _computeFees(ILoanRouterV2.FeeKind.Exit, loanTerms, loan, scaledPrincipal);
+        }
+
+        /* Total is the prepayment plus any exit fee */
+        repayment.repayment = repayment.prepayment + repayment.exitFee;
+    }
+
+    /**
+     * @notice Check whether the installment for the current schedule window is already paid
+     * @param loanTerms Loan terms
+     * @param loan Loan state
+     * @param timestamp Timestamp to evaluate the window against
+     * @return True when the repayment count runs ahead of the current window
+     */
+    function _isCurrentWindowRepaid(
+        ILoanRouterV2.LoanTermsV2 calldata loanTerms,
+        ILoanRouterV2.LoanState storage loan,
+        uint64 timestamp
+    ) internal view returns (bool) {
+        /* Compute the schedule deadlines */
+        (, uint64[] memory loanDeadlines) = ScheduleLogic.deadlines(loanTerms, loan.originationTimestamp);
+
+        /* Current window is repaid when the last paid installment's deadline has not passed */
+        return loan.repaymentCount > 0 && loanDeadlines[loan.repaymentCount - 1] >= timestamp;
+    }
+
+    /**
+     * @notice Split a scaled prepayment across tranches pro-rata to original amounts
+     * @param loanTerms Loan terms
+     * @param scaledPrepayment Scaled prepayment to distribute
+     * @param unscaledPrincipal Unscaled total principal
+     * @return tranchePrepayments Scaled prepayment per tranche
+     */
+    function _splitPrepayment(
+        ILoanRouterV2.LoanTermsV2 calldata loanTerms,
+        uint256 scaledPrepayment,
+        uint256 unscaledPrincipal
+    ) private pure returns (uint256[] memory tranchePrepayments) {
+        /* Allocate tranche prepayment array */
+        tranchePrepayments = new uint256[](loanTerms.trancheSpecs.length);
+
+        /* Track remaining prepayment to assign */
+        uint256 scaledPrepaymentRemaining = scaledPrepayment;
+
+        /* Split prepayment across every tranche */
+        for (uint8 i; i < loanTerms.trancheSpecs.length; i++) {
+            /* Last tranche takes the remainder to avoid rounding dust */
+            uint256 scaledTranchePrepayment = scaledPrepayment != 0
+                ? (i == loanTerms.trancheSpecs.length - 1)
+                    ? scaledPrepaymentRemaining
+                    : Math.mulDiv(scaledPrepayment, loanTerms.trancheSpecs[i].amount, unscaledPrincipal)
+                : 0;
+
+            /* Store tranche prepayment */
+            tranchePrepayments[i] = scaledTranchePrepayment;
+
+            /* Reduce remaining prepayment */
+            scaledPrepaymentRemaining -= scaledTranchePrepayment;
+        }
     }
 
     /**
@@ -441,6 +525,9 @@ library LoanLogicV2 {
     ) external view returns (uint256, uint256, uint256) {
         /* If loan is not active */
         if (loan.status != ILoanRouterV2.LoanStatus.Active) return (0, 0, 0);
+
+        /* No scheduled payment is due when the current window is already repaid */
+        if (_isCurrentWindowRepaid(loanTerms, loan, timestamp)) return (0, 0, 0);
 
         /* Calculate repayment due */
         (uint256 scaledPrincipalPayment, uint256 scaledInterestPayment,,) =
