@@ -1,3 +1,8 @@
+* LoanRouterV2 v1.1 - 07/09/2026
+    * Remove migration logic for LoanRouter v1.
+    * Add support for standalone prepayment after repayment.
+    * Add initial `refinance()` API.
+
 * LoanRouterV2 v1.0 - 06/25/2026
     * Initial release.
 
