@@ -13,8 +13,9 @@ import {ICreateX} from "./DeployProductionEnvironment.s.sol";
 contract DeployReserveAccountFactory is Deployer {
     ICreateX internal constant CREATEX = ICreateX(0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed);
 
-    address internal constant RESERVE_ACCOUNT_FACTORY_ADDRESS = address(0);
-    bytes32 internal constant RESERVE_ACCOUNT_FACTORY_SALT = bytes32(0);
+    address internal constant RESERVE_ACCOUNT_FACTORY_ADDRESS = address(0x12FAC720abEA21E2954d89C84E1274ADB9c3E75c);
+    bytes32 internal constant RESERVE_ACCOUNT_FACTORY_SALT =
+        bytes32(0x783b08aa21de056717173f72e04be0e91328a07b00cf24d187a5b78b00ec87dd);
 
     function run(
         address deployer,
