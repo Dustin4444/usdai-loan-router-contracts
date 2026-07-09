@@ -1,3 +1,6 @@
+* ReserveAccountFactory v1.0 - 07/09/2026
+    * Initial release.
+
 * LoanRouterV2 v1.1 - 07/09/2026
     * Remove migration logic for LoanRouter v1.
     * Add support for standalone prepayment after repayment.
