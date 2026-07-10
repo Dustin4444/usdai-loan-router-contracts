@@ -43,7 +43,7 @@ usage() {
     echo "  upgrade-deposit-timelock"
     echo "  upgrade-escrow-timelock <deposit token> <escrow depositor> <escrow admin>"
     echo "  upgrade-loan-router-v2 <fee recipient>"
-    echo "  upgrade-reserve-account-beacon"
+    echo "  upgrade-reserve-account-beacon <admin>"
     echo ""
     echo "  deploy-production-environment <deployer> <admin> <fee recipient> <escrow admin>"
     echo ""

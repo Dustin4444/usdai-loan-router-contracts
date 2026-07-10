@@ -12,18 +12,16 @@ import {IReserveAccount} from "src/interfaces/IReserveAccount.sol";
 import {Deployer} from "./utils/Deployer.s.sol";
 
 contract UpgradeReserveAccountBeacon is Deployer {
-    function run() public broadcast useDeployment returns (address) {
+    function run(
+        address admin
+    ) public broadcast useDeployment returns (address) {
         if (_deployment.reserveAccountBeacon == address(0x0)) revert MissingDependency();
+        if (_deployment.loanRouterV2 == address(0x0)) revert MissingDependency();
 
         UpgradeableBeacon beacon = UpgradeableBeacon(_deployment.reserveAccountBeacon);
 
-        // Read admin and loanRouter from the current implementation to preserve them
-        address currentImpl = beacon.implementation();
-        address admin = IReserveAccount(currentImpl).admin();
-        address loanRouter = IReserveAccount(currentImpl).loanRouter();
-
-        // Deploy new ReserveAccount implementation with the same immutables
-        ReserveAccount reserveAccountImpl = new ReserveAccount(admin, loanRouter);
+        // Deploy new ReserveAccount implementation
+        ReserveAccount reserveAccountImpl = new ReserveAccount(admin, _deployment.loanRouterV2);
         console.log("ReserveAccount implementation", address(reserveAccountImpl));
 
         if (Ownable(address(beacon)).owner() == msg.sender) {
